@@ -9,7 +9,7 @@
   </PropertyGroup>
 
   <PropertyGroup>
-    <Version>0.9.8.5</Version>
+    <Version>0.9.8.6</Version>
     <PublicRemoteDownloadFolder>W:\stacks\web\www\download\bitwarden-agent</PublicRemoteDownloadFolder>
   </PropertyGroup>
 

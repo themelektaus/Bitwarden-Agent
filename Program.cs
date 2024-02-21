@@ -4,12 +4,12 @@ using System.Windows.Forms;
 using Mutex = System.Threading.Mutex;
 
 #if RELEASE
-using Assembly = System.Reflection.Assembly;
-using NativeLibrary = System.Runtime.InteropServices.NativeLibrary;
-using DllImportSearchPath = System.Runtime.InteropServices.DllImportSearchPath;
-
 using System.Linq;
+
 using Directory = System.IO.Directory;
+using Assembly = System.Reflection.Assembly;
+using DllImportSearchPath = System.Runtime.InteropServices.DllImportSearchPath;
+using NativeLibrary = System.Runtime.InteropServices.NativeLibrary;
 #endif
 
 namespace BitwardenAgent;
@@ -20,8 +20,7 @@ public static class Program
     static void Main(string[] args)
     {
 #if RELEASE
-        if (
-            AppInfo.ProcessName.Contains(
+        if (AppInfo.currentProcessName.Contains(
                 "update",
                 StringComparison.OrdinalIgnoreCase
             )
@@ -43,7 +42,7 @@ public static class Program
         Update.Post();
 #endif
 
-        var mutex = new Mutex(true, AppInfo.Name, out var createdNew);
+        var mutex = new Mutex(true, AppInfo.currentProcessName, out var createdNew);
 
         if (!createdNew)
             return;
@@ -51,7 +50,7 @@ public static class Program
 #if RELEASE
         if (!Utils.IsAdmin())
         {
-            Utils.StartAsAdmin(AppInfo.ExeInfo.Name);
+            Utils.StartAsAdmin(AppInfo.currentProcessExeName);
             return;
         }
 
@@ -62,7 +61,8 @@ public static class Program
         if (Environment.GetEnvironmentVariable(variable, target) != value)
         {
             Environment.SetEnvironmentVariable(variable, value, target);
-            Utils.StartAsAdmin(AppInfo.ExeInfo.Name);
+
+            Utils.StartAsAdmin(AppInfo.currentProcessExeName);
             return;
         }
 

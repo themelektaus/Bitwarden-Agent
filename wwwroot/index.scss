@@ -396,3 +396,34 @@ li.disabled,
     opacity: .5;
     pointer-events: none;
 }
+
+.update-available-message {
+    padding: 1rem;
+    position: absolute;
+    top: 2rem;
+    right: 0;
+    text-align: center;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: .5rem;
+    text-shadow: 0 0 1rem white;
+
+    button {
+        animation: accent .5s infinite alternate;
+        padding: .25rem .75rem;
+        min-width: 0;
+    }
+}
+
+@keyframes accent {
+    0%, 75% {
+        scale: 1;
+        outline: 1px solid rgba(white, 0);
+    }
+
+    100% {
+        scale: 1.1;
+        outline: 1px solid rgba(white, .5);
+    }
+}

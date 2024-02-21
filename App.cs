@@ -96,7 +96,7 @@ public class App : IDisposable
 
             if (_items is null)
             {
-                await SetTempStatus("Getting Items failed :(");
+                await SetLongTempStatus("Getting Items failed :(");
             }
             else
             {
@@ -140,23 +140,23 @@ public class App : IDisposable
         await SetStatus(null);
     }
 
-    public async Task Update()
+#if RELEASE
+    public async Task<string> CheckForUpdates()
     {
-        await SetStatus("Checking");
+        var (available, messageOrVersion) = await Update.Check();
 
-        var (shouldUpdate, message) = await BitwardenAgent.Update.Check();
+        if (messageOrVersion is not null)
+            await SetShortTempStatus(available ? "Update available" : messageOrVersion);
 
-        if (shouldUpdate)
-        {
-            await SetStatus(message);
-            await BitwardenAgent.Update.Prepare();
-            await Exit();
-            return;
-        }
-
-        await SetTempStatus(message);
-        await SetStatus(null);
+        return available ? messageOrVersion : null;
     }
+
+    public async Task PerformUpdate()
+    {
+        await Update.Prepare();
+        await Exit();
+    }
+#endif
 
     public async Task Exit()
     {
@@ -228,7 +228,7 @@ public class App : IDisposable
             await client.Logout();
             client = null;
 
-            await SetTempStatus("Login failed :(");
+            await SetLongTempStatus("Login failed :(");
         }
 
         await SetStatus(null);
@@ -261,10 +261,17 @@ public class App : IDisposable
         await Task.Delay(1);
     }
 
-    public async Task SetTempStatus(string value)
+    public async Task SetShortTempStatus(string value)
     {
         await SetStatus(value);
-        await Task.Delay(3000);
+        await Task.Delay(1750);
+        await SetStatus(null);
+    }
+
+    public async Task SetLongTempStatus(string value)
+    {
+        await SetStatus(value);
+        await Task.Delay(3250);
         await SetStatus(null);
     }
 

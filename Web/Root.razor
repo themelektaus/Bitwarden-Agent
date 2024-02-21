@@ -1,5 +1,12 @@
 ﻿<div id="root-content" class="@(app.IsBusy() ? "disabled" : "")">
     <Menu />
+    @if (availableVersion is not null)
+    {
+        <div class="update-available-message">
+            New version available<br />
+            <Button onClickAsync="PerformUpdate">Update</Button>
+        </div>
+    }
     <div data-page="@(page)">
         @if (page == nameof(Page_Welcome))
         {
@@ -25,6 +32,8 @@
 @code {
 
     static App app => App.Instance;
+
+    string availableVersion;
 
     string _page = nameof(Page_Welcome);
 
@@ -53,6 +62,25 @@
 
         app.mainForm.Activated += (_, _) => this.Render();
         app.StatusChanged += (_, _) => this.Render();
+    }
+
+#if RELEASE
+    protected override async Task OnInitializedAsync()
+    {
+        availableVersion = await app.CheckForUpdates();
+    }
+#endif
+
+    public async Task PerformUpdate()
+    {
+#if RELEASE
+        await app.SetStatus($"Downloading v{availableVersion}");
+        await app.PerformUpdate();
+#else
+        await app.SetShortTempStatus("Not possible in debug mode");
+        availableVersion = null;
+        this.Render();
+#endif
     }
 
     public async Task Login()

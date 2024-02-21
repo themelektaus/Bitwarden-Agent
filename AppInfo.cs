@@ -1,30 +1,19 @@
 ﻿using System;
-using System.Diagnostics;
-using System.IO;
+
+using Process = System.Diagnostics.Process;
 
 namespace BitwardenAgent;
 
 public static class AppInfo
 {
-    static string name;
-    public static string Name => name ??= AppDomain.CurrentDomain.FriendlyName;
+    public static readonly string name = AppDomain.CurrentDomain.FriendlyName;
+    public static readonly string mainExeName = $"{name}.exe";
+    public static readonly string mainPdbName = $"{name}.pdb";
+    public static readonly string updateExeName = $"{name} Update.exe";
+    public static readonly string version
+        = typeof(AppInfo).Assembly.GetName()?.Version?.ToString() ?? "0.0.0.0";
 
-    static string updateName;
-    public static string UpdateName => updateName ??= $"{Name} Update";
-
-    static string version;
-    public static string Version => version ??= typeof(AppInfo).Assembly
-        .GetName()?.Version?.ToString() ?? "0.0.0.0";
-
-    static Process process;
-    public static Process Process => process ??= Process.GetCurrentProcess();
-
-    static string processName;
-    public static string ProcessName => processName ??= Process.ProcessName;
-
-    static ProcessModule mainModule;
-    static ProcessModule MainModule => mainModule ??= Process.MainModule;
-
-    static FileInfo exeInfo;
-    public static FileInfo ExeInfo => exeInfo ??= new(MainModule.FileName);
+    static readonly Process process = Process.GetCurrentProcess();
+    public static readonly string currentProcessName = process.ProcessName;
+    public static readonly string currentProcessExeName = process.MainModule.ModuleName;
 }

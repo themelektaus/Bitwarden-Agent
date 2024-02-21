@@ -2,14 +2,13 @@
 using System.Linq;
 using System.Threading.Tasks;
 
-
 #if RELEASE
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Net.Http;
 using System.Threading;
 
-using Env = System.Environment;
+using Environment = System.Environment;
 using Ex = System.Exception;
 #endif
 
@@ -17,10 +16,10 @@ namespace BitwardenAgent;
 
 public static class Update
 {
-    public static async Task<(bool shouldUpdate, string message)> Check()
+    public static async Task<(bool available, string message)> Check()
     {
 #if RELEASE
-        if (!int.TryParse(AppInfo.Version.Replace(".", string.Empty), out var localVersion))
+        if (!int.TryParse(AppInfo.version.Replace(".", string.Empty), out var localVersion))
             return (false, "Error: Unknown local version");
 
         using var httpClient = new HttpClient();
@@ -42,19 +41,19 @@ public static class Update
             return (false, $"Error: Parsed remote version is 0");
         
         if (_version == localVersion)
-            return (false, $"No Update available");
+            return (false, null as string);
         
-        return (true, $"Downloading v{version}");
+        return (true, version);
 #else
-        return await Task.FromResult((false, "Not possible in debug mode"));
+        return await Task.FromResult((true, "0.0.0.0"));
 #endif
     }
 
     public static async Task Prepare()
     {
+#if RELEASE
         RecreateDirectory("temp");
 
-#if RELEASE
         using (var httpClient = new HttpClient())
         {
             using var stream = await httpClient.GetStreamAsync(
@@ -67,9 +66,6 @@ public static class Update
                 zip.ExtractToDirectory("temp");
             });
         }
-#else
-        await Task.CompletedTask;
-#endif
 
         RecreateDirectory("backup");
 
@@ -88,10 +84,13 @@ public static class Update
                 ]
             );
 
-            CopyFile(AppInfo.ExeInfo.Name, $"{AppInfo.UpdateName}.exe");
+            CopyFile(AppInfo.mainExeName, AppInfo.updateExeName);
         });
 
-        Utils.StartAsAdmin($"{AppInfo.UpdateName}.exe");
+        Utils.StartAsAdmin(AppInfo.updateExeName);
+#else
+        await Task.CompletedTask;
+#endif
     }
 
 #if RELEASE
@@ -99,11 +98,11 @@ public static class Update
     {
         try
         {
-            while (Process.GetProcessesByName(AppInfo.Name).Length > 0)
+            while (Process.GetProcessesByName(AppInfo.name).Length > 0)
                 Thread.Sleep(1000);
 
-            if (File.Exists($"{AppInfo.Name}.pdb"))
-                DeleteFile($"{AppInfo.Name}.pdb");
+            if (File.Exists(AppInfo.mainPdbName))
+                DeleteFile(AppInfo.mainPdbName);
 
             Copy(
                 sourceDirectory: "temp",
@@ -113,7 +112,7 @@ public static class Update
 
             DeleteDirectory("temp");
 
-            Utils.StartAsAdmin($"{AppInfo.Name}.exe");
+            Utils.StartAsAdmin(AppInfo.mainExeName);
         }
         catch (Ex ex)
         {
@@ -125,11 +124,11 @@ public static class Update
     {
         try
         {
-            if (File.Exists($"{AppInfo.UpdateName}.exe"))
-                DeleteFile($"{AppInfo.UpdateName}.exe");
+            if (File.Exists(AppInfo.updateExeName))
+                DeleteFile(AppInfo.updateExeName);
 
-            if (File.Exists($"{AppInfo.Name}.pdb"))
-                File.SetAttributes($"{AppInfo.Name}.pdb", FileAttributes.Hidden);
+            if (File.Exists(AppInfo.mainPdbName))
+                File.SetAttributes(AppInfo.mainPdbName, FileAttributes.Hidden);
         }
         catch (Ex ex)
         {
@@ -139,11 +138,11 @@ public static class Update
 
     public static void Publish(string publicFolder, string version)
     {
-        var buildPath = Path.Combine(Env.CurrentDirectory, "Build");
+        var buildPath = Path.Combine(Environment.CurrentDirectory, "Build");
         if (!Directory.Exists(buildPath))
             return;
 
-        Env.CurrentDirectory = buildPath;
+        Environment.CurrentDirectory = buildPath;
 
         if (Directory.Exists("wwwroot"))
         {
@@ -153,6 +152,9 @@ public static class Update
             MoveDirectory("wwwroot", "web");
         }
 
+        foreach (var file in Directory.EnumerateFiles("web", "*.scss"))
+            DeleteFile(file);
+
         RecreateDirectory("lib");
 
         MoveFile("bw.exe", Path.Combine("lib", "bw.exe"));
@@ -160,15 +162,13 @@ public static class Update
         foreach (var dll in Directory.EnumerateFiles(".", "*.dll"))
             MoveFile(dll, Path.Combine("lib", dll));
 
-        var x = AppInfo.Name;
-
         if (File.Exists("data.zip"))
             DeleteFile("data.zip");
 
         using (var dataZip = ZipFile.Open("data.zip", ZipArchiveMode.Create))
         {
-            dataZip.CreateEntryFromFile($"{x}.exe", $"{x}.exe");
-            dataZip.CreateEntryFromFile($"{x}.pdb", $"{x}.pdb");
+            dataZip.CreateEntryFromFile(AppInfo.mainExeName, AppInfo.mainExeName);
+            dataZip.CreateEntryFromFile(AppInfo.mainPdbName, AppInfo.mainPdbName);
 
             foreach (var file in Directory.EnumerateFiles("lib"))
                 dataZip.CreateEntryFromFile(file, file);

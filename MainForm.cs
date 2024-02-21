@@ -18,7 +18,7 @@ public partial class MainForm : Form
     {
         SuspendLayout();
 
-        Text = $"{AppInfo.Name} - v{AppInfo.Version}";
+        Text = $"{AppInfo.name} - v{AppInfo.version}";
         Icon = Properties.Resources.Icon;
         FormBorderStyle = FormBorderStyle.Sizable;
         StartPosition = FormStartPosition.Manual;

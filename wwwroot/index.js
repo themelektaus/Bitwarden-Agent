@@ -10,10 +10,12 @@ function blur()
     document.activeElement.blur()
 }
 
-
 addEventListener(`keydown`, e =>
 {
-    if (e.altKey || e.shiftKey || e.ctrlKey)
+    if (e.shiftKey && e.key != `Enter`)
+        return
+
+    if (e.altKey || e.ctrlKey)
         return
 
     if ([`ArrowUp`, `ArrowDown`, `PageUp`, `PageDown`].indexOf(e.key) != -1)
