@@ -1,0 +1,9 @@
+/.vs/
+/bin/
+/Build/
+/obj/
+
+/bw.exe
+
+*.css
+*.user

@@ -1,0 +1,202 @@
+﻿@if (app.items.Count > 0)
+{
+    <div class="topbar">
+        <input @ref="searchInputReference"
+               @oninput="OnSearch"
+               type="text"
+               class="interactable"
+               placeholder="Search" />
+    </div>
+    <ul @ref="itemsReference">
+        @for (var i = 0; i < items.Count; i++)
+        {
+            var index = i;
+            var item = items[index];
+
+            <li class="interactable @(selectedIndex == index ? "selected" : "")"
+                @onmousedown="() => selectedIndex = index">
+                <div>@item.name</div>
+                <div>
+                    <div>@item.login.username</div>
+                    <div>@item.login.uris.FirstOrDefault()?.uri</div>
+                </div>
+                @if (Config.Instance.developerMode)
+                {
+                    <pre>@item.ToJson()</pre>
+                }
+            </li>
+        }
+    </ul>
+    return;
+}
+
+<div class="login-form">
+    <input type="text"
+           placeholder="Url"
+           class="interactable"
+           @bind="Config.Instance.url"
+           @bind:event="oninput" />
+
+    <input type="text"
+           placeholder="Username"
+           class="interactable"
+           @bind="Config.Instance.username"
+           @bind:event="oninput" />
+
+    <input type="password" autofocus
+           placeholder="Password"
+           class="interactable"
+           @bind="app.password"
+           @bind:event="oninput" />
+
+    <Button onClickAsync="root.Login"
+            isEnabled="app.IsReadyToLogin(includePassword: true)">
+        Login
+    </Button>
+</div>
+
+@implements IDisposable
+
+@inject IJSRuntime javascript
+
+@code {
+
+    static App app => App.Instance;
+    static Root root => app.components.root;
+    static Menu menu => app.components.menu;
+
+    ElementReference searchInputReference;
+    string searchText;
+
+    ElementReference itemsReference;
+
+    readonly List<Bitwarden_Item> items = new();
+
+    int _selectedIndex;
+    int selectedIndex
+    {
+        get => ClampIndex(_selectedIndex);
+        set
+        {
+            var newIndex = ClampIndex(value);
+            if (_selectedIndex == newIndex)
+                return;
+
+            _selectedIndex = newIndex;
+            menu.Render();
+        }
+    }
+
+    public Bitwarden_Item SelectedItem
+        => selectedIndex == -1
+            ? null
+            : items[selectedIndex];
+
+    protected override void OnInitialized()
+    {
+        app.pages.database = this;
+        UpdateItems();
+    }
+
+    public void Dispose()
+    {
+        app.pages.database = null;
+        menu.Render();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool _)
+    {
+        menu.Render();
+
+        if (selectedIndex == -1)
+            return;
+
+        await javascript.InvokeVoidAsync(
+            "scrollChildIntoView",
+            itemsReference,
+            selectedIndex
+        );
+    }
+
+    void OnSearch(ChangeEventArgs e)
+    {
+        searchText = e.Value?.ToString();
+
+        UpdateItems();
+    }
+
+    public void UpdateItems()
+    {
+        var items = new List<Bitwarden_Item>(app.items);
+
+        var searchTexts = (this.searchText ?? string.Empty)
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+        if (searchTexts.Length > 0)
+        {
+            var ignoreCase = StringComparison.OrdinalIgnoreCase;
+
+            foreach (var searchText in searchTexts)
+            {
+                items.RemoveAll(x =>
+                    !x.name.Contains(searchText, ignoreCase) &&
+                    !x.login.username.Contains(searchText, ignoreCase)
+                );
+            }
+        }
+
+        this.items.Clear();
+        this.items.AddRange(items);
+
+        app.components.menu.Render();
+    }
+
+    int ClampIndex(int index)
+    {
+        return (items.Count > 0)
+            ? Math.Clamp(index, 0, items.Count - 1)
+            : -1;
+    }
+
+    [JSInvokable]
+    public static async Task OnKeyDown(string key, bool shiftKey)
+    {
+        var @this = app.pages.database;
+        if (@this is not null)
+            await @this.OnKeyDownInternal(key, shiftKey);
+    }
+
+    async Task OnKeyDownInternal(string key, bool shiftKey)
+    {
+        if (app.IsBusy())
+            return;
+
+        switch (key)
+        {
+            case "ArrowUp": selectedIndex--; this.Render(); break;
+            case "ArrowDown": selectedIndex++; this.Render(); break;
+            case "Home": selectedIndex = 0; this.Render(); break;
+            case "End": selectedIndex = items.Count - 1; this.Render(); break;
+            case "PageUp": selectedIndex -= 10; this.Render(); break;
+            case "PageDown": selectedIndex += 10; this.Render(); break;
+            case "Enter":
+                await javascript.InvokeVoidAsync("blur");
+                if (app.items.Count == 0)
+                    await root.Login();
+                else if (shiftKey)
+                    await root.PerformAutoTypeUsernameAndPassword();
+                else
+                    await root.PerformAutoTypePassword();
+                return;
+        }
+
+        if (app.items.Count == 0)
+            return;
+
+        await javascript.InvokeVoidAsync(
+            "switchToInput",
+            searchInputReference,
+            key
+        );
+    }
+}

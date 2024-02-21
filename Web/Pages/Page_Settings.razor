@@ -1,0 +1,36 @@
+﻿<h1>Settings</h1>
+
+<div class="field interactable">
+    <input id="top-most-checkbox" type="checkbox" checked="@Config.Instance.topMost" @onchange="OnChangeTopMost" />
+    <label for="top-most-checkbox">Keep on Top</label>
+</div>
+
+<div class="field interactable">
+    <input id="delevoper-mode-checkbox" type="checkbox" @bind="@Config.Instance.developerMode" />
+    <label for="delevoper-mode-checkbox">Developer Mode</label>
+</div>
+
+<div style="margin: 2rem auto 0; display: flex; flex-direction: column; gap: 1rem;">
+    <Button onClick="() => app.mainForm.RefreshWindow(zoomFactor: 1, bounds: null, maximized: false)">
+        Reset Window Position
+    </Button>
+    <Button onClick="() => app.components.root.page = nameof(Page_Database)">
+        Back
+    </Button>
+</div>
+
+@code {
+
+    static App app => App.Instance;
+
+    protected override void OnInitialized()
+    {
+        app.components.menu.Render();
+    }
+
+    void OnChangeTopMost(ChangeEventArgs e)
+    {
+        Config.Instance.topMost = (bool) e.Value;
+        app.mainForm.TopMost = Config.Instance.topMost;
+    }
+}

@@ -1,0 +1,66 @@
+﻿<div id="menu">
+    <ul>
+        <li class="menu-root-item">
+            Main
+            <ul>
+                <MenuItem onClickAsync="root.Login"
+                          isEnabled="app.IsReadyToLogin(includePassword: true) && app.items.Count == 0">
+                    Login
+                </MenuItem>
+                <MenuItem onClickAsync="root.Logout"
+                          isEnabled="app.items.Count > 0">
+                    Logout
+                </MenuItem>
+                <MenuItem onClickAsync="app.Update">
+                    Update
+                </MenuItem>
+                <MenuItem onClickAsync="app.Exit">
+                    Exit
+                </MenuItem>
+            </ul>
+        </li>
+        <li class="menu-root-item">
+            Actions
+            <ul>
+                <MenuItem onClickAsync="root.PerformAutoTypePassword"
+                          isEnabled="app.pages.database?.SelectedItem is not null">
+                    Password (Enter)
+                </MenuItem>
+                <MenuItem onClickAsync="root.PerformAutoTypeUsernameAndPassword"
+                          isEnabled="app.pages.database?.SelectedItem is not null">
+                    Username & Password (Shift + Enter)
+                </MenuItem>
+            </ul>
+        </li>
+        <li class="menu-root-item">
+            Navigation
+            <ul>
+                <MenuItem onClick="() => root.page = nameof(Page_Welcome)"
+                          isEnabled="root.page != nameof(Page_Welcome)">
+                    Welcome
+                </MenuItem>
+                <MenuItem onClick="() => root.page = nameof(Page_Database)"
+                          isEnabled="root.page != nameof(Page_Database)">
+                    Database
+                </MenuItem>
+                <MenuItem onClick="() => root.page = nameof(Page_Settings)"
+                          isEnabled="root.page != nameof(Page_Settings)">
+                    Settings
+                </MenuItem>
+            </ul>
+        </li>
+    </ul>
+</div>
+<div id="menu-overlay"></div>
+
+@code {
+
+    static App app => App.Instance;
+    static Root root => app.components.root;
+
+    protected override void OnInitialized()
+    {
+        app.components.menu = this;
+    }
+
+}

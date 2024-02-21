@@ -1,0 +1,114 @@
+﻿<div id="root-content" class="@(app.IsBusy() ? "disabled" : "")">
+    <Menu />
+    <div data-page="@(page)">
+        @if (page == nameof(Page_Welcome))
+        {
+            <Page_Welcome />
+        }
+        @if (page == nameof(Page_Database))
+        {
+            <Page_Database />
+        }
+        @if (page == nameof(Page_Settings))
+        {
+            <Page_Settings />
+        }
+        <div>
+            <span class="loading"></span>
+        </div>
+    </div>
+    <div id="status">
+        @app.GetStatus()
+    </div>
+</div>
+
+@code {
+
+    static App app => App.Instance;
+
+    string _page = nameof(Page_Welcome);
+
+    public string page
+    {
+        get
+        {
+            return _page;
+        }
+        set
+        {
+            if (!(_page == value))
+            {
+                _page = value;
+                this.Render();
+            }
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        app.components.root = this;
+
+        if (app.IsReadyToLogin(includePassword: false))
+            _page = nameof(Page_Database);
+
+        app.mainForm.Activated += (_, _) => this.Render();
+        app.StatusChanged += (_, _) => this.Render();
+    }
+
+    public async Task Login()
+    {
+        await app.Sync();
+
+        PostRender();
+    }
+
+    public async Task Logout()
+    {
+        await app.Logout();
+
+        PostRender();
+    }
+
+    static void PostRender()
+    {
+        app.pages.database?.UpdateItems();
+        app.pages.database?.Render();
+        app.components.menu.Render();
+    }
+
+    public async Task PerformAutoTypePassword()
+    {
+        var login = app.pages.database?.SelectedItem?.login;
+        if (login is not null)
+            await app.PerformAutoType(login.password);
+    }
+
+    public async Task PerformAutoTypeUsernameAndPassword()
+    {
+        var login = app.pages.database?.SelectedItem?.login;
+        if (login is not null)
+            await app.PerformAutoType(login.username, login.password);
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+        {
+            if (app.IsReadyToLogin(includePassword: false))
+            {
+                app.mainForm.OnAfterFirstRender(
+                    Config.Instance.bounds,
+                    Config.Instance.maximized
+                );
+            }
+            else
+            {
+                app.mainForm.OnAfterFirstRender(
+                    bounds: null,
+                    maximized: false
+                );
+            }
+        }
+    }
+
+}

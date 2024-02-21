@@ -1,0 +1,36 @@
+﻿<h1>Servas</h1>
+
+<p>
+    Hallo, mein Freund/Feind der sicheren Passwörter und
+    Keine-Lust-haben-wollender-Fernwartungsvertipper.
+    Ich werde dir die Arbeit hoffentlich erleichern...
+</p>
+
+<p>
+    Ich habe mir gedacht, wie in den guten alten Zeiten, wieder ein Tool
+    zu basteln, dass per Knopfdruck alle deine gespeicherten Zugangsdaten
+    für dich eingibt.
+</p>
+<p>
+    Merke dir einfach nur folgende "spezielle" Steuerung:
+
+    <ul>
+        <li><b>Enter</b> um nur das Passwort zu senden</li>
+        <li><b>Shift + Enter</b> um Benutzername & Passwort zu senden</li>
+    </ul>
+</p>
+
+<div style="text-align: center; ">
+    <Button onClick="() => App.Instance.components.root.page = nameof(Page_Database)">
+        Verstanden
+    </Button>
+</div>
+
+@code {
+
+    protected override void OnInitialized()
+    {
+        App.Instance.components.menu.Render();
+    }
+
+}

@@ -1,0 +1,24 @@
+﻿<li @onclick="SimpleAsyncCallback.Create(OnClick)" class="interactable @(isEnabled ? "" : "disabled")">
+    @ChildContent
+</li>
+
+@inject IJSRuntime javascript
+
+@code {
+
+    [Parameter] public RenderFragment ChildContent { get; set; }
+    [Parameter] public Action onClick { get; set; }
+    [Parameter] public Func<Task> onClickAsync { get; set; }
+    [Parameter] public bool isEnabled { get; set; } = true;
+
+    async Task OnClick()
+    {
+        await javascript.InvokeVoidAsync("closeMenu");
+
+        onClick?.Invoke();
+
+        if (onClickAsync is not null)
+            await (onClickAsync() ?? Task.CompletedTask);
+    }
+
+}
