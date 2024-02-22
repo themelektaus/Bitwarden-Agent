@@ -1,0 +1,37 @@
+﻿<h1>Debug</h1>
+
+@if (app.NextUpdateCheckCountdown == 0)
+{
+    <p>Checking for Updates ...</p>
+}
+else
+{
+    <p>Next Update Check in @app.NextUpdateCheckCountdown seconds</p>
+    @if (app.NextUpdateCheckCountdown > 5)
+    {
+        <div style="display: flex; justify-content: center; ">
+            <Button onClick="() => app.NextUpdateCheckCountdown = 5">
+                Check Now
+            </Button>
+        </div>
+    }
+}
+
+@implements IDisposable
+
+@code {
+
+    static App app => App.Instance;
+
+    protected override void OnInitialized()
+    {
+        app.pages.debug = this;
+        app.components.menu.RenderLater();
+    }
+
+    public void Dispose()
+    {
+        app.pages.debug = null;
+    }
+
+}

@@ -1,16 +1,14 @@
 ﻿using System;
 using System.Windows.Forms;
 
-using Mutex = System.Threading.Mutex;
-
 #if RELEASE
+using System.IO;
 using System.Linq;
-
-using Directory = System.IO.Directory;
-using Assembly = System.Reflection.Assembly;
-using DllImportSearchPath = System.Runtime.InteropServices.DllImportSearchPath;
-using NativeLibrary = System.Runtime.InteropServices.NativeLibrary;
+using System.Reflection;
+using System.Runtime.InteropServices;
 #endif
+
+using Mutex = System.Threading.Mutex;
 
 namespace BitwardenAgent;
 
@@ -20,7 +18,8 @@ public static class Program
     static void Main(string[] args)
     {
 #if RELEASE
-        if (AppInfo.currentProcessName.Contains(
+        if (
+            AppInfo.currentProcessName.Contains(
                 "update",
                 StringComparison.OrdinalIgnoreCase
             )
@@ -67,20 +66,27 @@ public static class Program
         }
 
         foreach (var dll in Directory.EnumerateFiles("lib", "*.dll"))
-            LoadDll(dll);
+        {
+            NativeLibrary.TryLoad(
+                dll,
+                Assembly.GetExecutingAssembly(),
+                DllImportSearchPath.SafeDirectories | DllImportSearchPath.UserDirectories,
+                out _
+            );
+
+            Logger.Log($"Load DLL: {dll}");
+        }
 #endif
 
         ApplicationConfiguration.Initialize();
 
         using (var app = new App())
         {
-#if RELEASE
             AppDomain.CurrentDomain.UnhandledException += (sender, e) =>
             {
                 Logger.Log(e.ExceptionObject);
                 Environment.Exit(0);
             };
-#endif
 
             app.mainForm.ShowDialog();
 
@@ -101,18 +107,4 @@ public static class Program
 
         GC.KeepAlive(mutex);
     }
-
-#if RELEASE
-    static void LoadDll(string dll)
-    {
-        NativeLibrary.TryLoad(
-            dll,
-            Assembly.GetExecutingAssembly(),
-            DllImportSearchPath.SafeDirectories | DllImportSearchPath.UserDirectories,
-            out _
-        );
-
-        Logger.Log($"Load DLL: {dll}"); ;
-    }
-#endif
 }

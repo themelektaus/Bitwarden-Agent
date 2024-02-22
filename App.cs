@@ -4,6 +4,7 @@ using BitwardenAgent.Web.Pages;
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -19,7 +20,20 @@ public class App : IDisposable
 
     public readonly List<Bitwarden_Item> items = new();
 
-    public event EventHandler StatusChanged;
+    public Update Update { get; private set; }
+
+    Task updateCheckTask;
+
+    int nextUpdateCheckCountdown;
+    public int NextUpdateCheckCountdown
+    {
+        get => nextUpdateCheckCountdown;
+        set
+        {
+            nextUpdateCheckCountdown = value;
+            pages.debug?.RenderLater();
+        }
+    }
 
     public class Components
     {
@@ -30,9 +44,8 @@ public class App : IDisposable
 
     public class Pages
     {
-        public Page_Welcome welcome;
         public Page_Database database;
-        public Page_Settings settings;
+        public Page_Debug debug;
     }
     public readonly Pages pages = new();
 
@@ -40,6 +53,29 @@ public class App : IDisposable
     {
         Instance = this;
         mainForm = new(this) { TopMost = Config.Instance.topMost };
+
+        updateCheckTask = Task.Run(async () =>
+        {
+            while (components.root is null)
+            {
+                await Task.Delay(1);
+            }
+
+        Loop:
+            await Task.Delay(1000);
+            await CheckForUpdates();
+
+            NextUpdateCheckCountdown = 900;
+            while (NextUpdateCheckCountdown > 0)
+            {
+                if (updateCheckTask is null)
+                    return;
+
+                NextUpdateCheckCountdown--;
+                await Task.Delay(1000);
+            }
+            goto Loop;
+        });
     }
 
     public void Dispose()
@@ -52,17 +88,27 @@ public class App : IDisposable
     {
         if (disposing)
         {
+            var task = updateCheckTask;
+
+            updateCheckTask = null;
+
+            var config = Config.Instance;
+
             if (mainForm.WindowState == FormWindowState.Maximized)
             {
-                Config.Instance.maximized = true;
+                config.maximized = true;
             }
             else
             {
-                Config.Instance.bounds = mainForm.Bounds;
-                Config.Instance.maximized = false;
+                config.bounds = mainForm.Bounds;
+                config.maximized = false;
             }
 
-            Config.Instance.Save();
+            config.Save();
+
+            task.Wait();
+
+            ;
         }
     }
 
@@ -86,7 +132,7 @@ public class App : IDisposable
         if (password == string.Empty)
             return;
 
-        await SetStatus("Getting Items");
+        using var status = AddStatus("Getting Items");
 
         var client = await GetClient();
 
@@ -96,7 +142,7 @@ public class App : IDisposable
 
             if (_items is null)
             {
-                await SetLongTempStatus("Getting Items failed :(");
+                await TempStatus("Getting Items failed :(");
             }
             else
             {
@@ -119,8 +165,6 @@ public class App : IDisposable
                 }
             }
         }
-
-        await SetStatus(null);
     }
 
     public async Task Logout()
@@ -132,35 +176,42 @@ public class App : IDisposable
         if (client is null)
             return;
 
-        await SetStatus("Logout");
+        using var status = AddStatus("Logout");
 
         await client.Logout();
         client = null;
-
-        await SetStatus(null);
     }
 
-#if RELEASE
-    public async Task<string> CheckForUpdates()
+    public async Task CheckForUpdates()
     {
-        var (available, messageOrVersion) = await Update.Check();
+        bool IsUpdateAvailable()
+            => Update?.available ?? false;
 
-        if (messageOrVersion is not null)
-            await SetShortTempStatus(available ? "Update available" : messageOrVersion);
+        var updateAvailable = IsUpdateAvailable();
 
-        return available ? messageOrVersion : null;
+        Update = components.root is null
+            ? null
+            : await Update.Check();
+
+        if (components.root is null)
+            return;
+
+        if (updateAvailable != IsUpdateAvailable())
+            components.root.RenderLater();
     }
 
     public async Task PerformUpdate()
     {
+        using var status = AddStatus($"Downloading v{Update.remoteVersion}");
+
         await Update.Prepare();
+
         await Exit();
     }
-#endif
 
     public async Task Exit()
     {
-        await SetStatus("Exiting");
+        using var status = AddStatus("Exiting");
 
         await Logout();
 
@@ -171,25 +222,25 @@ public class App : IDisposable
 
     public async Task PerformAutoType(string keyString)
     {
-        await SetStatus("Performing Auto Type");
+        using var status = AddStatus("Performing Auto Type");
 
         keyString = AutoType.Escape(keyString);
         keyString = AutoType.Encode($"{keyString}\n");
         AutoType.PerformIntoPreviousWindow(mainForm.Handle, keyString);
 
-        await SetStatus(null);
+        await Task.CompletedTask;
     }
 
     public async Task PerformAutoType(string username, string password)
     {
-        await SetStatus("Performing Auto Type");
+        using var status = AddStatus("Performing Auto Type");
 
         username = AutoType.Escape(username);
         password = AutoType.Escape(password);
         var keyString = AutoType.Encode($"{username}\t{password}\n");
         AutoType.PerformIntoPreviousWindow(mainForm.Handle, keyString);
 
-        await SetStatus(null);
+        await Task.CompletedTask;
     }
 
 
@@ -198,7 +249,7 @@ public class App : IDisposable
 
     async Task<Client> GetClient()
     {
-        await SetStatus("Login");
+        using var status = AddStatus("Login");
 
         var hasConnection = false;
 
@@ -228,60 +279,58 @@ public class App : IDisposable
             await client.Logout();
             client = null;
 
-            await SetLongTempStatus("Login failed :(");
+            await TempStatus("Login failed :(");
         }
-
-        await SetStatus(null);
 
         return client;
     }
 
 
 
-    readonly Stack<string> statusStack = new();
+    readonly List<Status> statusList = new();
 
-    public string GetStatus()
+    public class Status : IDisposable
     {
-        return statusStack.TryPeek(out var x) ? x : null;
+        public string message;
+        public event Action OnDispose;
+        public void Dispose() => OnDispose?.Invoke();
+        public override string ToString() => message;
+    }
+
+    public Status GetCurrentStatus()
+    {
+        return statusList.LastOrDefault();
     }
 
     public bool IsBusy()
     {
-        return GetStatus() is not null;
+        return GetCurrentStatus() is not null;
     }
 
-    public async Task SetStatus(string value)
+    public Status AddStatus(string message)
     {
-        if (value is null)
-            statusStack.Pop();
-        else
-            statusStack.Push(value);
-
-        StatusChanged?.Invoke(this, EventArgs.Empty);
-        await Task.Delay(1);
+        return AddStatusInternal(message);
     }
 
-    public async Task SetShortTempStatus(string value)
+    public async Task TempStatus(string message)
     {
-        await SetStatus(value);
-        await Task.Delay(1750);
-        await SetStatus(null);
+        using var status = AddStatusInternal(message);
+        await Task.Delay(3000);
     }
 
-    public async Task SetLongTempStatus(string value)
+    Status AddStatusInternal(string message)
     {
-        await SetStatus(value);
-        await Task.Delay(3250);
-        await SetStatus(null);
-    }
+        var status = new Status { message = message };
 
-    public async Task ClearStatus()
-    {
-        if (statusStack.Count == 0)
-            return;
+        status.OnDispose += () =>
+        {
+            statusList.Remove(status);
+            components.root.RenderLater();
+        };
 
-        statusStack.Clear();
-        StatusChanged?.Invoke(this, EventArgs.Empty);
-        await Task.Delay(1);
+        statusList.Add(status);
+        components.root.RenderLater();
+
+        return status;
     }
 }

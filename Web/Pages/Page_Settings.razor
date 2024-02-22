@@ -6,7 +6,7 @@
 </div>
 
 <div class="field interactable">
-    <input id="delevoper-mode-checkbox" type="checkbox" @bind="@Config.Instance.developerMode" />
+    <input id="delevoper-mode-checkbox" type="checkbox" checked="@Config.Instance.developerMode" @onchange="OnChangeDeveloperMode" />
     <label for="delevoper-mode-checkbox">Developer Mode</label>
 </div>
 
@@ -25,7 +25,7 @@
 
     protected override void OnInitialized()
     {
-        app.components.menu.Render();
+        app.components.menu.RenderLater();
     }
 
     void OnChangeTopMost(ChangeEventArgs e)
@@ -33,4 +33,11 @@
         Config.Instance.topMost = (bool) e.Value;
         app.mainForm.TopMost = Config.Instance.topMost;
     }
+
+    void OnChangeDeveloperMode(ChangeEventArgs e)
+    {
+        Config.Instance.developerMode = (bool) e.Value;
+        app.components.menu.RenderLater();
+    }
+
 }

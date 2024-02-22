@@ -3,7 +3,8 @@
 /Build/
 /obj/
 
-/bw.exe
-
 *.css
 *.user
+
+/compilerconfig.json
+/compilerconfig.json.defaults

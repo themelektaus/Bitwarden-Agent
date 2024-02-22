@@ -83,7 +83,7 @@
                 return;
 
             _selectedIndex = newIndex;
-            menu.Render();
+            menu.RenderLater();
         }
     }
 
@@ -101,12 +101,12 @@
     public void Dispose()
     {
         app.pages.database = null;
-        menu.Render();
+        menu.RenderLater();
     }
 
     protected override async Task OnAfterRenderAsync(bool _)
     {
-        menu.Render();
+        menu.RenderLater();
 
         if (selectedIndex == -1)
             return;
@@ -148,7 +148,7 @@
         this.items.Clear();
         this.items.AddRange(items);
 
-        app.components.menu.Render();
+        app.components.menu.RenderLater();
     }
 
     int ClampIndex(int index)
@@ -173,12 +173,12 @@
 
         switch (key)
         {
-            case "ArrowUp": selectedIndex--; this.Render(); break;
-            case "ArrowDown": selectedIndex++; this.Render(); break;
-            case "Home": selectedIndex = 0; this.Render(); break;
-            case "End": selectedIndex = items.Count - 1; this.Render(); break;
-            case "PageUp": selectedIndex -= 10; this.Render(); break;
-            case "PageDown": selectedIndex += 10; this.Render(); break;
+            case "ArrowUp": selectedIndex--; this.RenderLater(); break;
+            case "ArrowDown": selectedIndex++; this.RenderLater(); break;
+            case "Home": selectedIndex = 0; this.RenderLater(); break;
+            case "End": selectedIndex = items.Count - 1; this.RenderLater(); break;
+            case "PageUp": selectedIndex -= 10; this.RenderLater(); break;
+            case "PageDown": selectedIndex += 10; this.RenderLater(); break;
             case "Enter":
                 await javascript.InvokeVoidAsync("blur");
                 if (app.items.Count == 0)

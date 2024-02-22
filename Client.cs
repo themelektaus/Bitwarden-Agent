@@ -351,23 +351,17 @@ public class Client()
 
     static string GetExe()
     {
-#if RELEASE
-        var exe = Path.Combine(AppContext.BaseDirectory, "lib", "bw.exe");
-#else
-        var exe = Path.Combine(AppContext.BaseDirectory, "bw.exe");
-#endif
-
-        if (!File.Exists(exe))
+        if (!File.Exists(AppInfo.bwExe))
         {
             throw new(
-                $"{exe} not found. " +
+                $"{AppInfo.bwExe} not found. " +
                 $"Before start, please download " +
                 $"the last version of Bitwarden CLI (BW) " +
                 $"from https://bitwarden.com/help/cli/"
             );
         }
 
-        return exe;
+        return AppInfo.bwExe;
     }
 
     static string Base64EncodeJson<T>(T data)

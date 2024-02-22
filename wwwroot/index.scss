@@ -86,10 +86,6 @@ p {
     margin: .25rem 0;
 }
 
-a {
-    color: orange;
-}
-
 ul {
     list-style: none;
     margin: 0;
@@ -262,16 +258,6 @@ button {
     padding-block: .5rem;
 }
 
-@keyframes blink {
-    from {
-        color: rgba(white, .5);
-    }
-
-    to {
-        color: rgba(white, 1);
-    }
-}
-
 [data-page] {
     flex: 1 0 0;
     overflow: hidden auto;
@@ -398,13 +384,13 @@ li.disabled,
 }
 
 .update-available-message {
-    padding: 1rem;
-    position: absolute;
-    top: 2rem;
+    padding: .25rem .75rem;
+    background-color: #393939;
     right: 0;
     text-align: center;
     display: flex;
     flex-direction: row;
+    justify-content: center;
     align-items: center;
     gap: .5rem;
     text-shadow: 0 0 1rem white;
@@ -413,17 +399,104 @@ li.disabled,
         animation: accent .5s infinite alternate;
         padding: .25rem .75rem;
         min-width: 0;
+
+        &:hover {
+            background-color: #222;
+        }
+    }
+}
+
+@keyframes blink {
+    from {
+        color: rgba(white, .5);
+    }
+
+    to {
+        color: rgba(white, 1);
     }
 }
 
 @keyframes accent {
     0%, 75% {
         scale: 1;
-        outline: 1px solid rgba(white, 0);
+        outline: 1px solid rgba(white, .25);
     }
 
     100% {
         scale: 1.1;
         outline: 1px solid rgba(white, .5);
+    }
+}
+
+.dialog {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+    @include backdrop-filter-disabled;
+    justify-content: center;
+    align-items: center;
+    display: flex;
+    opacity: 0;
+    pointer-events: none;
+
+    &, &-box {
+        transition: opacity 120ms, scale 120ms;
+    }
+
+    &.visible {
+        opacity: 1;
+        pointer-events: all;
+
+        .dialog-box {
+            scale: 1;
+        }
+    }
+
+    &-box {
+        width: 20rem;
+        max-width: calc(100vw - 2rem);
+        max-height: calc(100vh - 2rem);
+        overflow: hidden;
+        background-color: #111;
+        border-radius: .25rem;
+        display: flex;
+        flex-direction: column;
+        scale: 1.05;
+
+        &-title {
+            padding: .625rem .75rem .5rem;
+            background-color: #222;
+        }
+
+        &-content {
+            padding: .75rem 1rem .5rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+            overflow: auto;
+        }
+
+        &-bottom {
+            display: flex;
+            gap: 1rem;
+            padding: .25rem 1rem 1rem;
+
+            button {
+                padding: .5rem 1rem;
+                min-width: 0;
+                flex: 1;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            button + button {
+                background-color: transparent;
+                flex: unset;
+            }
+        }
     }
 }

@@ -15,9 +15,12 @@ public static class ExtensionMethods
 {
     const Flags PRIVATE_FLAGS = Flags.Instance | Flags.NonPublic;
 
-    public static void Render(this ComponentBase @this)
+    public static void RenderLater(this ComponentBase @this)
     {
-        @this.GetPrivateMethod("StateHasChanged").Invoke(@this, null);
+        var method = @this.GetPrivateMethod("StateHasChanged");
+        var action = new Action(() => method.Invoke(@this, null));
+        var invokeMethod = @this.GetPrivateMethod("InvokeAsync", typeof(Action));
+        invokeMethod.Invoke(@this, new object[] { action });
     }
 
     public static MethodInfo GetPrivateMethod(this object @this, string name, params Type[] argTypes)

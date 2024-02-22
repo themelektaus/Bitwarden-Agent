@@ -1,15 +1,13 @@
 ﻿using System.Drawing;
 using System.IO;
+using System.Net.Http;
+using System.Threading.Tasks;
 
 namespace BitwardenAgent.Models;
 
 public class Config
 {
- #if RELEASE
     static readonly string PATH = Path.Combine("data", "config.json");
-#else
-    const string PATH = "Config.json";
-#endif
 
     static Config instance;
     public static Config Instance => instance ??= Load();
@@ -23,7 +21,7 @@ public class Config
     public Rectangle? bounds;
     public bool maximized;
 
-    public string updateUrl = "https://steinalt.online/download/bitwarden-agent";
+    public string downloadUrl = "https://steinalt.online/download/bitwarden-agent";
 
     Config() { }
 
@@ -39,9 +37,45 @@ public class Config
     public void Save()
     {
         var json = this.ToJson();
-#if RELEASE
         Directory.CreateDirectory("data");
-#endif
         File.WriteAllText(PATH, json);
+    }
+
+    string GetDownloadFileUrl(string file)
+    {
+        return $"{downloadUrl.TrimEnd('/')}/{file}";
+    }
+
+    public async Task<string> DownloadFileContent(string file)
+    {
+        var url = GetDownloadFileUrl(file);
+        using var httpClient = new HttpClient();
+        return await httpClient.GetStringAsync(url);
+    }
+
+    public async Task<Stream> DownloadFileStream(string file)
+    {
+        var url = GetDownloadFileUrl(file);
+        using var httpClient = new HttpClient();
+        return await httpClient.GetStreamAsync(url);
+    }
+
+    public async Task<bool> DownloadFile(string file)
+    {
+        var url = GetDownloadFileUrl(file);
+        using var httpClient = new HttpClient();
+        using var response = await httpClient.GetAsync(url);
+        
+        if (!response.IsSuccessStatusCode)
+            return false;
+
+        Directory.CreateDirectory("files");
+        var path = Path.Combine("files", file);
+
+        using var fileStream = new FileStream(path, FileMode.Create);
+
+        await response.Content.CopyToAsync(fileStream);
+
+        return true;
     }
 }

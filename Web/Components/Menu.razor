@@ -44,6 +44,13 @@
                           isEnabled="root.page != nameof(Page_Settings)">
                     Settings
                 </MenuItem>
+                @if (Config.Instance.developerMode)
+                {
+                    <MenuItem onClick="() => root.page = nameof(Page_Debug)"
+                              isEnabled="root.page != nameof(Page_Debug)">
+                        Debug
+                    </MenuItem>
+                }
             </ul>
         </li>
     </ul>

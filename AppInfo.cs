@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 
 using Process = System.Diagnostics.Process;
 
@@ -16,4 +17,12 @@ public static class AppInfo
     static readonly Process process = Process.GetCurrentProcess();
     public static readonly string currentProcessName = process.ProcessName;
     public static readonly string currentProcessExeName = process.MainModule.ModuleName;
+
+    public static readonly string bwExe = Path.GetFullPath(Path.Combine("files", "bw.exe"));
+
+#if RELEASE
+    public static readonly string hostPage = "web/index.html";
+#else
+    public static readonly string hostPage = "wwwroot/index.html";
+#endif
 }

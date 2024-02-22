@@ -1,278 +1,101 @@
-﻿using System.IO;
-using System.Linq;
-using System.Threading.Tasks;
-
-#if RELEASE
-using System.Diagnostics;
-using System.IO.Compression;
+﻿using System;
 using System.Net.Http;
-using System.Threading;
-
-using Environment = System.Environment;
-using Ex = System.Exception;
-#endif
+using System.Threading.Tasks;
 
 namespace BitwardenAgent;
 
-public static class Update
+public partial class Update
 {
-    public static async Task<(bool available, string message)> Check()
+    public class Version
     {
-#if RELEASE
-        if (!int.TryParse(AppInfo.version.Replace(".", string.Empty), out var localVersion))
-            return (false, "Error: Unknown local version");
+        public enum Status { Null, Empty, ParseError, Zero, Ok }
+        public readonly string text;
+        public readonly Status status;
+        public readonly int value;
 
-        using var httpClient = new HttpClient();
-        
-        var version = await httpClient.GetStringAsync(
-            $"{Config.Instance.updateUrl.TrimEnd('/')}/version.txt"
-        );
-
-        if (version is null)
-            return (false, "Error: Remote version is null");
-
-        if (version == string.Empty)
-            return (false, "Error: Remote version is empty");
-
-        if (!int.TryParse(version.Replace(".", string.Empty), out var _version))
-            return (false, $"Error: Can not parse remote version \"{version}\"");
-        
-        if (_version == 0)
-            return (false, $"Error: Parsed remote version is 0");
-        
-        if (_version == localVersion)
-            return (false, null as string);
-        
-        return (true, version);
-#else
-        return await Task.FromResult((true, "0.0.0.0"));
-#endif
-    }
-
-    public static async Task Prepare()
-    {
-#if RELEASE
-        RecreateDirectory("temp");
-
-        using (var httpClient = new HttpClient())
+        public Version(string text)
         {
-            using var stream = await httpClient.GetStreamAsync(
-                $"{Config.Instance.updateUrl.TrimEnd('/')}/data.zip"
-            );
+            this.text = text;
 
-            await Task.Run(() =>
+            if (text is null)
             {
-                using var zip = new ZipArchive(stream);
-                zip.ExtractToDirectory("temp");
-            });
+                status = Status.Null;
+                return;
+            }
+
+            if (text == string.Empty)
+            {
+                status = Status.Empty;
+                return;
+            }
+
+            if (!int.TryParse(text.Replace(".", string.Empty), out int _value))
+            {
+                status = Status.ParseError;
+                return;
+            }
+
+            if (_value == 0)
+            {
+                status = Status.Zero;
+                return;
+            }
+
+            value = _value;
+            status = Status.Ok;
         }
 
-        RecreateDirectory("backup");
-
-        await Task.Run(() =>
+        public string GetStatusMessage(string name)
         {
-            var s = Path.DirectorySeparatorChar;
+            return status switch
+            {
+                Status.Null => $"Error: {name} is null",
+                Status.Empty => $"Error: {name} is null",
+                Status.ParseError => "ParseError",
+                Status.Zero => $"Error: Can not parse {name} \"{text}\"",
+                Status.Ok => $"Error: Parsed {name} is 0",
+                _ => $"Error: Unknown status of {name}",
+            };
+        }
 
-            Copy(
-                sourceDirectory: ".",
-                destinationDirectory: "backup",
-                exclusions: [
-                    $"{s}backup",
-                    $"{s}lib{s}bw.exe",
-                    $"{s}logs",
-                    $"{s}temp"
-                ]
-            );
+        public override string ToString() => text;
 
-            CopyFile(AppInfo.mainExeName, AppInfo.updateExeName);
-        });
-
-        Utils.StartAsAdmin(AppInfo.updateExeName);
-#else
-        await Task.CompletedTask;
-#endif
+        public override int GetHashCode() => HashCode.Combine(status, value);
+        public override bool Equals(object obj)
+            => obj is not null
+            && obj is Version other
+            && GetHashCode() == other.GetHashCode();
+        public static bool operator ==(Version a, Version b) => a?.Equals(b) ?? false;
+        public static bool operator !=(Version a, Version b) => !(a == b);
     }
 
-#if RELEASE
-    public static void Apply()
+    public readonly Version localVersion;
+    public readonly Version remoteVersion;
+    public readonly bool available;
+
+    Update(string localVersion, string remoteVersion)
     {
-        try
-        {
-            while (Process.GetProcessesByName(AppInfo.name).Length > 0)
-                Thread.Sleep(1000);
+        this.localVersion = new(localVersion);
+        this.remoteVersion = new(remoteVersion);
 
-            if (File.Exists(AppInfo.mainPdbName))
-                DeleteFile(AppInfo.mainPdbName);
-
-            Copy(
-                sourceDirectory: "temp",
-                destinationDirectory: ".",
-                exclusions: []
-            );
-
-            DeleteDirectory("temp");
-
-            Utils.StartAsAdmin(AppInfo.mainExeName);
-        }
-        catch (Ex ex)
-        {
-            Logger.Log(ex);
-        }
-    }
-
-    public static void Post()
-    {
-        try
-        {
-            if (File.Exists(AppInfo.updateExeName))
-                DeleteFile(AppInfo.updateExeName);
-
-            if (File.Exists(AppInfo.mainPdbName))
-                File.SetAttributes(AppInfo.mainPdbName, FileAttributes.Hidden);
-        }
-        catch (Ex ex)
-        {
-            Logger.Log(ex);
-        }
-    }
-
-    public static void Publish(string publicFolder, string version)
-    {
-        var buildPath = Path.Combine(Environment.CurrentDirectory, "Build");
-        if (!Directory.Exists(buildPath))
+        if (this.localVersion.status != Version.Status.Ok)
             return;
 
-        Environment.CurrentDirectory = buildPath;
+        if (this.remoteVersion.status != Version.Status.Ok)
+            return;
 
-        if (Directory.Exists("wwwroot"))
-        {
-            if (Directory.Exists("web"))
-                DeleteDirectory("web");
+        if (this.localVersion == this.remoteVersion)
+            return;
 
-            MoveDirectory("wwwroot", "web");
-        }
-
-        foreach (var file in Directory.EnumerateFiles("web", "*.scss"))
-            DeleteFile(file);
-
-        RecreateDirectory("lib");
-
-        MoveFile("bw.exe", Path.Combine("lib", "bw.exe"));
-
-        foreach (var dll in Directory.EnumerateFiles(".", "*.dll"))
-            MoveFile(dll, Path.Combine("lib", dll));
-
-        if (File.Exists("data.zip"))
-            DeleteFile("data.zip");
-
-        using (var dataZip = ZipFile.Open("data.zip", ZipArchiveMode.Create))
-        {
-            dataZip.CreateEntryFromFile(AppInfo.mainExeName, AppInfo.mainExeName);
-            dataZip.CreateEntryFromFile(AppInfo.mainPdbName, AppInfo.mainPdbName);
-
-            foreach (var file in Directory.EnumerateFiles("lib"))
-                dataZip.CreateEntryFromFile(file, file);
-
-            foreach (var file in Directory.EnumerateFiles("web"))
-                dataZip.CreateEntryFromFile(file, file);
-        }
-
-        MoveFile("data.zip", Path.Combine(publicFolder, "data.zip"));
-        File.WriteAllText(Path.Combine(publicFolder, "version.txt"), version);
+        available = true;
     }
+
+    public async static Task<Update> Check() => new(
+        localVersion: AppInfo.version,
+        remoteVersion: await Config.Instance.DownloadFileContent("version.txt")
+    );
+
+#if DEBUG
+    public static async Task Prepare() => await Task.CompletedTask;
 #endif
-
-    static void RecreateDirectory(string name)
-    {
-        if (Directory.Exists(name))
-            DeleteDirectory(name);
-
-        CreateDirectory(name);
-    }
-
-    static void Copy(string sourceDirectory, string destinationDirectory, string[] exclusions)
-    {
-        var searchOption = SearchOption.AllDirectories;
-
-        foreach (var directory in Directory.GetDirectories(sourceDirectory, "*", searchOption))
-        {
-            var _directory = directory[sourceDirectory.Length..];
-            if (exclusions.Any(_directory.StartsWith))
-            {
-                Logger.Log($"Skipping: {directory}");
-                continue;
-            }
-
-            _directory = destinationDirectory + _directory;
-            if (!Directory.Exists(_directory))
-                CreateDirectory(_directory);
-        }
-
-        foreach (var file in Directory.GetFiles(sourceDirectory, "*.*", searchOption))
-        {
-            var _file = file[sourceDirectory.Length..];
-            if (exclusions.Contains(_file))
-            {
-                Logger.Log($"Skipping: {file}");
-                continue;
-            }
-
-            var _directory = Path.GetDirectoryName(_file);
-            if (exclusions.Any(_directory.StartsWith))
-            {
-                Logger.Log($"Skipping: {file}");
-                continue;
-            }
-
-            CopyFile(file, destinationDirectory + _file);
-        }
-    }
-
-    static void CreateDirectory(string name)
-    {
-        Logger.Log($"Create Directory: {name}");
-#if RELEASE
-        Directory.CreateDirectory(name);
-#endif
-    }
-
-    static void MoveDirectory(string sourceDirectory, string destinationDirectory)
-    {
-        Logger.Log($"Move Directory: {sourceDirectory} => {destinationDirectory}");
-#if RELEASE
-        Directory.Move("wwwroot", "web");
-#endif
-    }
-
-    static void DeleteDirectory(string name)
-    {
-        Logger.Log($"Delete Directory: {name}");
-#if RELEASE
-        Directory.Delete(name, true);
-#endif
-    }
-
-    static void CopyFile(string sourceFile, string destinationFile)
-    {
-        Logger.Log($"Copy File: {sourceFile} => {destinationFile}");
-#if RELEASE
-        File.Copy(sourceFile, destinationFile, true);
-#endif
-    }
-
-    static void MoveFile(string sourceFile, string destinationFile)
-    {
-        Logger.Log($"Move File: {sourceFile} => {destinationFile}");
-#if RELEASE
-        File.Move(sourceFile, destinationFile, true);
-#endif
-    }
-
-    static void DeleteFile(string name)
-    {
-        Logger.Log($"Delete File: {name}");
-#if RELEASE
-        File.Delete(name);
-#endif
-    }
 }

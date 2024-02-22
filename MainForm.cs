@@ -26,11 +26,7 @@ public partial class MainForm : Form
 
         blazorWebView = new BlazorWebView
         {
-#if RELEASE
-            HostPage = "web/index.html",
-#else
-            HostPage = "wwwroot/index.html",
-#endif
+            HostPage = AppInfo.hostPage,
             Location = Point.Empty,
             Margin = Padding.Empty,
             Dock = DockStyle.Fill

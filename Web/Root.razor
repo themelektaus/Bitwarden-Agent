@@ -1,39 +1,58 @@
 ﻿<div id="root-content" class="@(app.IsBusy() ? "disabled" : "")">
     <Menu />
-    @if (availableVersion is not null)
+    @if (app.Update?.available ?? false)
     {
         <div class="update-available-message">
             New version available<br />
-            <Button onClickAsync="PerformUpdate">Update</Button>
+            <Button onClickAsync="app.PerformUpdate">Update</Button>
         </div>
     }
     <div data-page="@(page)">
-        @if (page == nameof(Page_Welcome))
+        @switch (page)
         {
-            <Page_Welcome />
-        }
-        @if (page == nameof(Page_Database))
-        {
-            <Page_Database />
-        }
-        @if (page == nameof(Page_Settings))
-        {
-            <Page_Settings />
+            case nameof(Page_Welcome):
+                <Page_Welcome />
+                break;
+
+            case nameof(Page_Database):
+                <Page_Database />
+                break;
+
+            case nameof(Page_Settings):
+                <Page_Settings />
+                break;
+
+            case nameof(Page_Debug):
+                <Page_Debug />
+                break;
         }
         <div>
             <span class="loading"></span>
         </div>
     </div>
+    <div class="dialog @(dialogInfo.visible ? "visible" : "")" @onclick="() => dialogInfo.visible = false">
+        <div class="dialog-box" @onclick:stopPropagation="true">
+            <div class="dialog-box-title">Missing File</div>
+            <div class="dialog-box-content">
+                <p>
+                    You need to download <b>@dialogInfo.name</b> to
+                    perform <b>@dialogInfo.neededFor</b>.
+                </p>
+            </div>
+            <div class="dialog-box-bottom">
+                <Button onClickAsync="dialogInfo.PerformAction">Download</Button>
+                <Button onClick="CloseDialog">Cancel</Button>
+            </div>
+        </div>
+    </div>
     <div id="status">
-        @app.GetStatus()
+        @app.GetCurrentStatus()
     </div>
 </div>
 
 @code {
 
     static App app => App.Instance;
-
-    string availableVersion;
 
     string _page = nameof(Page_Welcome);
 
@@ -48,7 +67,7 @@
             if (!(_page == value))
             {
                 _page = value;
-                this.Render();
+                this.RenderLater();
             }
         }
     }
@@ -60,31 +79,14 @@
         if (app.IsReadyToLogin(includePassword: false))
             _page = nameof(Page_Database);
 
-        app.mainForm.Activated += (_, _) => this.Render();
-        app.StatusChanged += (_, _) => this.Render();
-    }
-
-#if RELEASE
-    protected override async Task OnInitializedAsync()
-    {
-        availableVersion = await app.CheckForUpdates();
-    }
-#endif
-
-    public async Task PerformUpdate()
-    {
-#if RELEASE
-        await app.SetStatus($"Downloading v{availableVersion}");
-        await app.PerformUpdate();
-#else
-        await app.SetShortTempStatus("Not possible in debug mode");
-        availableVersion = null;
-        this.Render();
-#endif
+        app.mainForm.Activated += (_, _) => this.RenderLater();
     }
 
     public async Task Login()
     {
+        if (OpenDialog("bw.exe", "Bitwarden CLI", "Auto Typing"))
+            return;
+
         await app.Sync();
 
         PostRender();
@@ -100,22 +102,26 @@
     static void PostRender()
     {
         app.pages.database?.UpdateItems();
-        app.pages.database?.Render();
-        app.components.menu.Render();
+        app.pages.database?.RenderLater();
+        app.components.menu.RenderLater();
     }
 
     public async Task PerformAutoTypePassword()
     {
         var login = app.pages.database?.SelectedItem?.login;
-        if (login is not null)
-            await app.PerformAutoType(login.password);
+        if (login is null)
+            return;
+
+        await app.PerformAutoType(login.password);
     }
 
     public async Task PerformAutoTypeUsernameAndPassword()
     {
         var login = app.pages.database?.SelectedItem?.login;
-        if (login is not null)
-            await app.PerformAutoType(login.username, login.password);
+        if (login is null)
+            return;
+
+        await app.PerformAutoType(login.username, login.password);
     }
 
     protected override void OnAfterRender(bool firstRender)
@@ -137,6 +143,47 @@
                 );
             }
         }
+    }
+
+    public class DialogInfo
+    {
+        public bool visible;
+        public string file;
+        public string name;
+        public string neededFor;
+
+        public async Task PerformAction()
+        {
+            visible = false;
+
+            using var status = app.AddStatus($"Downloading {file}");
+
+            if (await Config.Instance.DownloadFile(file))
+                await app.TempStatus($"Download of {file} successful");
+            else
+                await app.TempStatus($"ERROR: Download of {file} failed");
+        }
+    }
+    readonly DialogInfo dialogInfo = new();
+
+    public bool OpenDialog(string file, string name, string neededFor)
+    {
+        if (System.IO.File.Exists(System.IO.Path.Combine("files", file)))
+            return false;
+
+        dialogInfo.visible = true;
+        dialogInfo.file = file;
+        dialogInfo.name = name;
+        dialogInfo.neededFor = neededFor;
+        this.RenderLater();
+
+        return true;
+    }
+
+    public void CloseDialog()
+    {
+        dialogInfo.visible = false;
+        this.RenderLater();
     }
 
 }
