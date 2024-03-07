@@ -30,18 +30,32 @@
             <span class="loading"></span>
         </div>
     </div>
-    <div class="dialog @(dialogInfo.visible ? "visible" : "")" @onclick="() => dialogInfo.visible = false">
+    <div class="dialog @(exportDialog.visible ? "visible" : "")" @onclick="() => exportDialog.visible = false">
+        <div class="dialog-box" @onclick:stopPropagation="true">
+            <div class="dialog-box-title">Export</div>
+            <div class="dialog-box-content">
+                <label style="align-self: flex-start; ">Key</label>
+                <pre>@exportDialog.password</pre>
+                <Button onClickAsync="CopyEncryptedDataPasswordToClipboard">Copy</Button>
+            </div>
+            <div class="dialog-box-bottom">
+                <Button onClickAsync="exportDialog.PerformAction">Save</Button>
+                <Button onClick="CloseExportDialog">Cancel</Button>
+            </div>
+        </div>
+    </div>
+    <div class="dialog @(downloadDialog.visible ? "visible" : "")" @onclick="() => downloadDialog.visible = false">
         <div class="dialog-box" @onclick:stopPropagation="true">
             <div class="dialog-box-title">Missing File</div>
             <div class="dialog-box-content">
                 <p>
-                    You need to download <b>@dialogInfo.name</b> to
-                    perform <b>@dialogInfo.neededFor</b>.
+                    You need to download <b>@downloadDialog.name</b> to
+                    perform <b>@downloadDialog.neededFor</b>.
                 </p>
             </div>
             <div class="dialog-box-bottom">
-                <Button onClickAsync="dialogInfo.PerformAction">Download</Button>
-                <Button onClick="CloseDialog">Cancel</Button>
+                <Button onClickAsync="downloadDialog.PerformAction">Download</Button>
+                <Button onClick="CloseDownloadDialog">Cancel</Button>
             </div>
         </div>
     </div>
@@ -84,7 +98,7 @@
 
     public async Task Login()
     {
-        if (OpenDialog("bw.exe", "Bitwarden CLI", "Auto Typing"))
+        if (OpenDownloadDialog("bw.exe", "Bitwarden CLI", "Auto Typing"))
             return;
 
         await app.Sync();
@@ -145,7 +159,50 @@
         }
     }
 
-    public class DialogInfo
+    public class ExportDialog
+    {
+        public bool visible;
+        public string password;
+        public byte[] data;
+
+        public async Task PerformAction()
+        {
+            visible = false;
+
+            using var status = app.AddStatus($"Exporting");
+
+            var path = System.IO.Path.Combine("data", "items.key");
+            await System.IO.File.WriteAllTextAsync(path, password);
+
+            path = System.IO.Path.Combine("data", "items.dat");
+            await System.IO.File.WriteAllBytesAsync(path, data);
+        }
+
+    }
+    readonly ExportDialog exportDialog = new();
+
+    public void OpenExportDialog()
+    {
+        exportDialog.visible = true;
+        var (password, data) = EncryptedData.Encrypt(app.items.ToJson());
+        exportDialog.password = password;
+        exportDialog.data = data;
+        this.RenderLater();
+    }
+
+    public void CloseExportDialog()
+    {
+        exportDialog.visible = false;
+        this.RenderLater();
+    }
+
+    public async Task CopyEncryptedDataPasswordToClipboard()
+    {
+
+        await Task.CompletedTask;
+    }
+
+    public class DownloadDialog
     {
         public bool visible;
         public string file;
@@ -164,25 +221,25 @@
                 await app.TempStatus($"ERROR: Download of {file} failed");
         }
     }
-    readonly DialogInfo dialogInfo = new();
+    readonly DownloadDialog downloadDialog = new();
 
-    public bool OpenDialog(string file, string name, string neededFor)
+    public bool OpenDownloadDialog(string file, string name, string neededFor)
     {
         if (System.IO.File.Exists(System.IO.Path.Combine("files", file)))
             return false;
 
-        dialogInfo.visible = true;
-        dialogInfo.file = file;
-        dialogInfo.name = name;
-        dialogInfo.neededFor = neededFor;
+        downloadDialog.visible = true;
+        downloadDialog.file = file;
+        downloadDialog.name = name;
+        downloadDialog.neededFor = neededFor;
         this.RenderLater();
 
         return true;
     }
 
-    public void CloseDialog()
+    public void CloseDownloadDialog()
     {
-        dialogInfo.visible = false;
+        downloadDialog.visible = false;
         this.RenderLater();
     }
 
