@@ -3,17 +3,24 @@
         <li class="menu-root-item">
             Main
             <ul>
-                <MenuItem onClickAsync="root.Login"
-                          isEnabled="app.IsReadyToLogin(includePassword: true) && app.items.Count == 0">
+                <MenuItem onClick="() => root.loginDialog.Open(string.Empty)"
+                          isEnabled="!app.IsConnected()">
                     Login
                 </MenuItem>
+                <MenuItem onClickAsync="root.Sync"
+                          isEnabled="app.IsConnected()">
+                    Sync
+                </MenuItem>
                 <MenuItem onClickAsync="root.Logout"
-                          isEnabled="app.items.Count > 0">
+                          isEnabled="app.IsConnected()">
                     Logout
                 </MenuItem>
-                <MenuItem onClick="root.OpenExportDialog"
-                          isEnabled="app.items.Count > 0">
-                    Export
+                <MenuItem onClick="root.loadDialog.Open">
+                    Load
+                </MenuItem>
+                <MenuItem onClick="root.saveDialog.Open"
+                          isEnabled="!app.data.IsEmpty()">
+                    Save
                 </MenuItem>
                 <MenuItem onClickAsync="app.Exit">
                     Exit

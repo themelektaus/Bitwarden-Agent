@@ -15,7 +15,7 @@
 }
 
 @mixin backdrop-filter-disabled {
-    backdrop-filter: contrast(.75) brightness(.5);
+    backdrop-filter: contrast(.25) brightness(.25);
 }
 
 ::-webkit-scrollbar {
@@ -93,15 +93,31 @@ ul {
 }
 
 pre {
-    font-size: 1.175em;
     margin: .5rem 0;
-    line-height: 1.25;
-    padding: .5rem;
+    padding: .25rem;
     background: rgba(black, .25);
     border: 1px solid black;
-    user-select: text;
     max-height: 15em;
     overflow: hidden scroll;
+}
+
+a, .link {
+    color: orange;
+    text-decoration: none;
+    cursor: pointer;
+
+    &:hover {
+        text-decoration: underline;
+    }
+}
+
+.selectable-text, pre, .mono {
+    user-select: text;
+}
+
+pre, .mono {
+    font-family: monospace;
+    font-size: .875rem;
 }
 
 .field {
@@ -121,13 +137,12 @@ input {
     outline: none;
 }
 
-input[type=text],
-input[type=password] {
+input:not([type=checkbox]) {
     background-color: rgba(white, .1);
     flex: 1;
-    padding: .625rem 1rem;
+    padding: .5rem 1rem;
     border-radius: 100rem;
-    width: 0;
+    min-width: 0;
 }
 
 input[type=checkbox] {
@@ -136,7 +151,7 @@ input[type=checkbox] {
 }
 
 button {
-    padding: .75rem 1.25rem;
+    padding: .5rem 1rem;
     min-width: 7rem;
     border-radius: 100rem;
     border: none;
@@ -202,8 +217,7 @@ button {
         display: flex;
 
         li {
-            padding: .5rem;
-            padding-bottom: .4rem;
+            padding: .325rem .5rem .25rem;
 
             &.visible, &:hover {
                 background-color: rgba(white, .2);
@@ -214,7 +228,8 @@ button {
             }
 
             & > ul {
-                margin: .4rem 0 0 -.5rem;
+                margin: .275rem 0 0 -.5rem;
+                padding: .25rem 0;
                 display: none;
                 flex-direction: column;
                 position: absolute;
@@ -222,8 +237,7 @@ button {
                 background-color: #222;
 
                 & > li {
-                    padding-left: 1rem;
-                    padding-right: 1rem;
+                    padding: .375rem .75rem .375rem .5rem;
 
                     &:hover {
                         background-color: rgba(white, .2);
@@ -239,23 +253,28 @@ button {
 }
 
 #status {
-    flex: 0 0 1.25em;
-    padding: 0 .75rem;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: .5rem;
-    z-index: 1;
+    flex: 0 0 1em;
+    display: block;
     height: 0;
-    animation: blink .5s ease infinite alternate;
     max-height: 0;
-    padding-block: 0;
+    animation: blink .5s ease infinite alternate;
     transition: all .25s;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    display: block;
+    text-align: center;
+    padding-inline: .25rem;
 }
 
 .disabled #status {
     max-height: 2.5rem;
-    padding-block: .5rem;
+    padding-block: .325rem .375rem;
+}
+
+[flex-center] {
+    display: flex;
+    justify-content: center;
 }
 
 [data-page] {
@@ -285,19 +304,6 @@ button {
     }
 }
 
-.login-form {
-    margin-block: auto;
-    @include display-flex-column-centered;
-    gap: .75rem;
-
-    & > input {
-        width: unset;
-        text-align: center;
-        width: 15rem;
-        max-width: 100%;
-    }
-}
-
 .disabled [data-page] > div:has(.loading) {
     pointer-events: all;
     opacity: 1;
@@ -315,6 +321,7 @@ button {
 }
 
 [data-page=Page_Database] {
+    padding: 1rem;
 
     .topbar {
         flex: 0 0 2rem;
@@ -329,9 +336,9 @@ button {
         & > li {
             padding: .5rem;
             @include display-flex-column;
-            gap: .125rem;
+            gap: .25rem;
             border: 1px solid transparent;
-
+            
             &:hover, &.selected {
                 background-color: rgba(white, .1);
             }
@@ -348,22 +355,55 @@ button {
                 }
             }
 
+            & > div:first-child {
+                display: flex;
+                align-items: center;
+                gap: .25rem;
+                
+                & > .badge {
+                    background-color: rgba(white, .2);
+                    padding: .125rem .325rem;
+                    border-radius: .125rem;
+                    font-size: .95em;
+                }
+            }
+
+            &.selected > div:first-child > div:last-child {
+                overflow: auto;
+            }
+
+            & > div:first-child > div:last-child::-webkit-scrollbar {
+                height: .25rem;
+            }
+
             & > div,
-            & > div + div > div {
+            & > div + div > div > div {
                 overflow: hidden;
                 white-space: nowrap;
                 text-overflow: ellipsis;
             }
 
             & > div + div {
-                color: rgba(white, .5);
                 display: none;
-
+                flex-direction: column;
+                gap: .25rem;
+                padding: .25rem .125rem 0;
+                
                 & > div {
-                    flex: 1;
+                    display: flex;
+                    align-items: center;
                 }
 
-                & > div + div {
+                & > div > div {
+                    flex: 0 0 4.25rem;
+                }
+
+                & > div > div:first-child {
+                    color: rgba(white, .5);
+                    font-size: .9em;
+                }
+
+                & > div > div + div {
                     flex: 2;
                 }
             }
@@ -428,13 +468,16 @@ li.disabled,
     }
 }
 
+.dialog, #status {
+    z-index: 10;
+}
+
 .dialog {
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
     bottom: 0;
-    z-index: 20;
     @include backdrop-filter-disabled;
     justify-content: center;
     align-items: center;
@@ -465,7 +508,7 @@ li.disabled,
         display: flex;
         flex-direction: column;
         scale: 1.05;
-
+        
         &-title {
             padding: .625rem .75rem .5rem;
             background-color: #222;
@@ -475,9 +518,13 @@ li.disabled,
             padding: .75rem 1rem .5rem;
             display: flex;
             flex-direction: column;
-            align-items: center;
-            gap: .5rem;
+            align-items: stretch;
+            gap: .25rem;
             overflow: auto;
+
+            & > input {
+                margin: .5rem 0;
+            }
 
             pre {
                 background-color: #333;
@@ -488,9 +535,36 @@ li.disabled,
                 margin: 0;
             }
 
-            button {
-                padding: .5rem 1rem;
-                min-width: 0;
+            ul {
+                @include display-flex-column;
+                gap: .25rem;
+                padding: .25rem;
+
+                li {
+                    border: 1px solid rgba(white, 0);
+                    padding: .325rem .425rem;
+                    background-color: rgba(white, .05);
+
+                    &:hover {
+                        border-color: rgba(white, .25);
+                        background: rgba(white, .1);
+                    }
+
+                    &.selected {
+                        border-color: rgba(white, .5);
+                        background: rgba(white, .1);
+                    }
+                }
+            }
+            
+            & > div {
+                display: flex;
+                gap: .5rem;
+                align-items: center;
+
+                label {
+                    margin-top: .2rem;
+                }
             }
         }
 
@@ -500,7 +574,6 @@ li.disabled,
             padding: .25rem 1rem 1rem;
 
             button {
-                padding: .5rem 1rem;
                 min-width: 0;
                 flex: 1;
                 overflow: hidden;

@@ -6,6 +6,10 @@ using Newtonsoft.Json.Linq;
 using System;
 using System.Linq;
 using System.Reflection;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows.Forms;
 
 using Flags = System.Reflection.BindingFlags;
 
@@ -68,4 +72,39 @@ public static class ExtensionMethods
             .Split('/').FirstOrDefault()
         ?? string.Empty;
     }
+
+    public static string Split(this string @this, int blockSize, string separator)
+    {
+        var builder = new StringBuilder();
+        for (var i = 0; i < @this.Length; i++)
+        {
+            if (i > 0 && i % blockSize == 0)
+                builder.Append(separator);
+            builder.Append(@this[i]);
+        }
+        return builder.ToString();
+    }
+
+    public static async Task<T> InvokeAsync<T>(this Control @this, Func<T> method)
+    {
+        var result = @this.BeginInvoke(method);
+        await Task.Run(result.AsyncWaitHandle.WaitOne);
+        return (T) @this.EndInvoke(result);
+    }
+
+    public static async Task<DialogResult> ShowDialogAsync(this CommonDialog @this)
+    {
+        var result = DialogResult.None;
+        var thread = new Thread(() => result = @this.ShowDialog());
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        await Task.Run(thread.Join);
+        return result;
+    }
+
+    public static async Task<DialogResult> ShowDialogAsync(this CommonDialog @this, Control threadHandle)
+    {
+        return await threadHandle.InvokeAsync(@this.ShowDialog);
+    }
+
 }

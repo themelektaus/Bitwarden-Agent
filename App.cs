@@ -16,9 +16,7 @@ public class App : IDisposable
 
     public MainForm mainForm;
 
-    public string password = string.Empty;
-
-    public readonly List<Bitwarden_Item> items = new();
+    public Bitwarden_Data data = new();
 
     public Update Update { get; private set; }
 
@@ -31,7 +29,9 @@ public class App : IDisposable
         set
         {
             nextUpdateCheckCountdown = value;
-            pages.debug?.RenderLater();
+
+            if (mainForm.Visible)
+                pages.debug?.RenderLater();
         }
     }
 
@@ -52,7 +52,7 @@ public class App : IDisposable
     public App()
     {
         Instance = this;
-        mainForm = new(this) { TopMost = Config.Instance.topMost };
+        mainForm = new() { TopMost = Config.Instance.topMost };
 
         updateCheckTask = Task.Run(async () =>
         {
@@ -92,87 +92,74 @@ public class App : IDisposable
 
             updateCheckTask = null;
 
-            var config = Config.Instance;
-
-            if (mainForm.WindowState == FormWindowState.Maximized)
-            {
-                config.maximized = true;
-            }
-            else
-            {
-                config.bounds = mainForm.Bounds;
-                config.maximized = false;
-            }
-
-            config.Save();
+            Config.Instance.Save();
 
             task.Wait();
-
-            ;
         }
     }
 
-    public bool IsReadyToLogin(bool includePassword)
+    public bool IsConnected() => client is not null;
+
+    public async Task Login(string password)
     {
-        if (string.IsNullOrWhiteSpace(Config.Instance.url))
-            return false;
+        var url = Config.Instance.url;
+        var username = Config.Instance.username;
 
-        if (string.IsNullOrEmpty(Config.Instance.username))
-            return false;
-
-        if (includePassword)
-            if (string.IsNullOrEmpty(password))
-                return false;
-
-        return true;
+        await Login(url, username, password);
     }
 
     public async Task Sync()
     {
-        if (password == string.Empty)
-            return;
+        data = new() { collections = [], items = [] };
 
-        using var status = AddStatus("Getting Items");
+        using var status1 = AddStatus("Load Collections...");
+        
+        var _collections = await client.GetCollections();
 
-        var client = await GetClient();
-
-        if (client is not null)
+        if (_collections is null)
         {
-            var _items = await client.GetItems();
-
-            if (_items is null)
+            await TempStatus("Getting Collections failed :(");
+        }
+        else
+        {
+            foreach (var collection in _collections)
             {
-                await TempStatus("Getting Items failed :(");
+                data.collections.Add(collection);
             }
-            else
+        }
+
+        using var status2 = AddStatus("Load Items...");
+        
+        var _items = await client.GetItems();
+
+        if (_items is null)
+        {
+            await TempStatus("Getting Items failed :(");
+        }
+        else
+        {
+            foreach (var item in _items)
             {
-                items.Clear();
+                if (item.type != Bitwarden_Item.Type.Login)
+                    continue;
 
-                foreach (var item in _items)
-                {
-                    if (item.type != Bitwarden_Item.Type.Login)
+                var login = item.login;
+                if (login is null)
+                    continue;
+
+                if (login.username == string.Empty)
+                    if (login.password == string.Empty)
                         continue;
 
-                    var login = item.login;
-                    if (login is null)
-                        continue;
+                item.LoadCollections(data.collections);
 
-                    if (login.username == string.Empty)
-                        if (login.password == string.Empty)
-                            continue;
-
-                    items.Add(item);
-                }
+                data.items.Add(item);
             }
         }
     }
 
     public async Task Logout()
     {
-        password = string.Empty;
-
-        items.Clear();
-
         if (client is null)
             return;
 
@@ -243,17 +230,31 @@ public class App : IDisposable
         await Task.CompletedTask;
     }
 
+    public async Task<bool> DownloadFile(string file)
+    {
+        using var status = AddStatus($"Downloading {file}");
+
+        if (await Config.Instance.DownloadFile(file))
+        {
+            await TempStatus($"Download of {file} successful");
+            return true;
+        }
+
+        await TempStatus($"Error: Download of {file} failed");
+        return false;
+    }
+
 
 
     Client client;
 
-    async Task<Client> GetClient()
+    async Task Login(string url, string username, string password)
     {
-        using var status = AddStatus("Login");
+        using var status = AddStatus("Connecting...");
 
         var hasConnection = false;
 
-        if (client is not null)
+        if (IsConnected())
         {
             if (client.CredentialsEquals(password))
                 hasConnection = await client.HasConnection();
@@ -269,20 +270,18 @@ public class App : IDisposable
         {
             client = new();
 
-            await client.Login(password);
+            await client.Login(url, username, password);
 
             hasConnection = await client.HasConnection();
         }
 
-        if (!hasConnection)
-        {
-            await client.Logout();
-            client = null;
+        if (hasConnection)
+            return;
+        
+        await client.Logout();
+        client = null;
 
-            await TempStatus("Login failed :(");
-        }
-
-        return client;
+        await TempStatus("Connection could not be established. :(");
     }
 
 
@@ -314,7 +313,7 @@ public class App : IDisposable
 
     public async Task TempStatus(string message)
     {
-        using var status = AddStatusInternal(message);
+        using var _ = AddStatusInternal(message);
         await Task.Delay(3000);
     }
 
@@ -332,5 +331,18 @@ public class App : IDisposable
         components.root.RenderLater();
 
         return status;
+    }
+
+    public async Task<string> ShowOpenFileDialog(string fileName)
+    {
+        using var status = AddStatus("Opening File...");
+
+        using var dialog = Utils.CreateOpenFileDialog(fileName);
+
+        var dialogResult = await dialog.ShowDialogAsync();
+        if (dialogResult == DialogResult.OK)
+            return dialog.FileName;
+
+        return null;
     }
 }

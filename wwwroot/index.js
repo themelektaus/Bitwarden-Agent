@@ -90,7 +90,7 @@ function switchToInput($, key)
     if ($ == document.activeElement)
         return
 
-    if (key.length == 1)
+    if (key && key.length == 1)
         $.value += key
 
     $.focus()

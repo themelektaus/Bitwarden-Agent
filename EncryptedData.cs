@@ -1,5 +1,5 @@
-﻿using System;
-using System.IO;
+﻿using System.IO;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -7,53 +7,104 @@ namespace BitwardenAgent;
 
 public record EncryptedData(byte[] Key, byte[] IV, byte[] Data)
 {
-    public static EncryptedData Encrypt(byte[] decryptedData)
+    public static EncryptedData From(byte[] password, byte[] data)
+    {
+        var keyLength = password.Length / 3 * 2;
+        var key = password.Take(keyLength).ToArray();
+        var iv = password.Skip(keyLength).ToArray();
+        return new(key, iv, data);
+    }
+
+    public static EncryptedData Encrypt(string data)
+    {
+        return Encrypt(Encoding.UTF8.GetBytes(data));
+    }
+
+    public static EncryptedData Encrypt(byte[] data)
     {
         using var aes = Aes.Create();
+        aes.KeySize = 256;
+        aes.BlockSize = 128;
+        aes.Mode = CipherMode.CBC;
+        aes.Padding = PaddingMode.PKCS7;
         aes.GenerateKey();
         aes.GenerateIV();
-        using var outputStream = new MemoryStream();
+
         using var encryptor = aes.CreateEncryptor();
-        using var encryptionStream = new CryptoStream(outputStream, encryptor, CryptoStreamMode.Write);
-        encryptionStream.Write(decryptedData);
-        return new(aes.Key, aes.IV, outputStream.ToArray());
+        using var stream = new MemoryStream();
+
+        using (
+            var cryptoStream = new CryptoStream(
+                stream,
+                encryptor,
+                CryptoStreamMode.Write
+            )
+        )
+        {
+            cryptoStream.Write(data, 0, data.Length);
+        }
+
+        return new(aes.Key, aes.IV, stream.ToArray());
     }
 
-    public string GetPassword()
+    public byte[] GetPassword()
     {
-        var password = new byte[Key.Length + IV.Length];
-        Array.Copy(Key, password, Key.Length);
-        Array.Copy(IV, 0, password, Key.Length, IV.Length);
-        return Convert.ToBase64String(password);
+        return Enumerable.Concat(Key, IV).ToArray();
     }
 
-    public byte[] Decrypt()
+    public string Decrypt()
     {
-        Aes encryptor = Aes.Create();
-        encryptor.Key = Key;
-        encryptor.IV = IV;
-        using var outputStream = new MemoryStream();
-        using var decryptor = encryptor.CreateDecryptor();
-        using var decryptionStream = new CryptoStream(outputStream, decryptor, CryptoStreamMode.Write);
-        decryptionStream.Write(Data, 0, Data.Length);
-        return outputStream.ToArray();
+        return Encoding.UTF8.GetString(DecryptInternal());
     }
 
-    public static (string password, byte[] data) Encrypt(string decryptedData)
+    byte[] DecryptInternal()
     {
-        var encryptedData = Encrypt(Encoding.UTF8.GetBytes(decryptedData));
-        return (encryptedData.GetPassword(), encryptedData.Data);
+        byte[] result;
+
+        using (var aes = Aes.Create())
+        {
+            aes.KeySize = 256;
+            aes.BlockSize = 128;
+            aes.Mode = CipherMode.CBC;
+            aes.Padding = PaddingMode.PKCS7;
+            aes.Key = Key;
+            aes.IV = IV;
+
+            using var decryptor = aes.CreateDecryptor();
+            using var sourceStream = new MemoryStream(Data);
+            using var destinationStream = new MemoryStream();
+            using var cryptoStream = new CryptoStream(
+                sourceStream,
+                decryptor,
+                CryptoStreamMode.Read
+            );
+
+            cryptoStream.CopyTo(destinationStream);
+
+            result = destinationStream.ToArray();
+        }
+
+        return result;
     }
 
-    public static string Decrypt(string password, byte[] data)
-    {
-        var pw = Convert.FromBase64String(password);
-        var key = new byte[16];
-        var iv = new byte[8];
-        Array.Copy(pw, 0, key, 0, 16);
-        Array.Copy(pw, 16, iv, 0, 8);
-        var encryptedData = new EncryptedData(key, iv, data);
-        var decryptedData = encryptedData.Decrypt();
-        return Encoding.UTF8.GetString(decryptedData); 
-    }
+    static readonly byte[] PROTECTION_SALT = new byte[] {
+        54, 49, 57, 54, 56, 55, 99, 48,
+        100, 53, 55, 48, 52, 51, 53, 56,
+        98, 49, 99, 101, 52, 99, 48, 52,
+        101, 97, 57, 53, 50, 99, 54, 56
+    };
+
+    public static void Protect(ref byte[] value)
+        => value = ProtectedData.Protect(
+            value,
+            PROTECTION_SALT,
+            DataProtectionScope.CurrentUser
+        );
+
+    public static void Unprotect(ref byte[] value)
+        => value = ProtectedData.Unprotect(
+            value,
+            PROTECTION_SALT,
+            DataProtectionScope.CurrentUser
+        );
 }

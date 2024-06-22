@@ -1,59 +1,48 @@
-﻿@if (app.items.Count > 0)
-{
-    <div class="topbar">
-        <input @ref="searchInputReference"
-               @oninput="OnSearch"
-               type="text"
-               class="interactable"
-               placeholder="Search" />
-    </div>
-    <ul @ref="itemsReference">
-        @for (var i = 0; i < items.Count; i++)
-        {
-            var index = i;
-            var item = items[index];
-
-            <li class="interactable @(selectedIndex == index ? "selected" : "")"
-                @onmousedown="() => selectedIndex = index">
-                <div>@item.name</div>
-                <div>
-                    <div>@item.login.username</div>
-                    <div>@item.login.uris.FirstOrDefault()?.uri</div>
-                </div>
-                @if (Config.Instance.developerMode)
-                {
-                    <pre>@item.ToJson()</pre>
-                }
-            </li>
-        }
-    </ul>
-    return;
-}
-
-<div class="login-form">
-    <input type="text"
-           placeholder="Url"
-           class="interactable"
-           @bind="Config.Instance.url"
-           @bind:event="oninput" />
-
-    <input type="text"
-           placeholder="Username"
-           class="interactable"
-           @bind="Config.Instance.username"
-           @bind:event="oninput" />
-
-    <input type="password" autofocus
-           placeholder="Password"
-           class="interactable"
-           @bind="app.password"
-           @bind:event="oninput" />
-
-    <Button onClickAsync="root.Login"
-            isEnabled="app.IsReadyToLogin(includePassword: true)">
-        Login
-    </Button>
+﻿<div class="topbar">
+    <input @ref="searchInputReference"
+            @oninput="OnSearch"
+            type="text"
+            class="interactable"
+            placeholder="Search" />
 </div>
+<ul @ref="itemsReference">
+    @for (var i = 0; i < items.Count; i++)
+    {
+        var index = i;
+        var item = items[index];
+
+        <li class="interactable @(selectedIndex == index ? "selected" : "")"
+            @onmousedown="() => selectedIndex = index">
+            <div>
+                @foreach (var collectionName in @item.GetCollectionNames())
+                {
+                    <div class="badge">@collectionName</div>
+                }
+                <div>@item.GetSimplifiedName()</div>
+            </div>
+            <div>
+                <div>
+                    <div>Username</div>
+                    <div class="selectable-text">@item.login.username</div>
+                </div>
+                <div>
+                    <div>Password</div>
+                    <div class="mono">@item.login.password</div>
+                </div>
+                <div>
+                    <div>URL</div>
+                    <div class="link" @onclick="() => OpenLink(item.login.uris.FirstOrDefault()?.uri)">
+                        @item.login.uris.FirstOrDefault()?.uri
+                    </div>
+                </div>
+            </div>
+            @if (Config.Instance.developerMode)
+            {
+                <pre>@item.ToJson()</pre>
+            }
+        </li>
+    }
+</ul>
 
 @implements IDisposable
 
@@ -127,7 +116,7 @@
 
     public void UpdateItems()
     {
-        var items = new List<Bitwarden_Item>(app.items);
+        var items = new List<Bitwarden_Item>(app.data?.items ?? []);
 
         var searchTexts = (this.searchText ?? string.Empty)
             .Split(' ', StringSplitOptions.RemoveEmptyEntries);
@@ -140,7 +129,8 @@
             {
                 items.RemoveAll(x =>
                     !x.name.Contains(searchText, ignoreCase) &&
-                    !x.login.username.Contains(searchText, ignoreCase)
+                    !x.login.username.Contains(searchText, ignoreCase) &&
+                    !x.GetCollectionNames().Any(x => x.Contains(searchText, ignoreCase))
                 );
             }
         }
@@ -171,6 +161,9 @@
         if (app.IsBusy())
             return;
 
+        if (Dialog.active is not null)
+            return;
+
         switch (key)
         {
             case "ArrowUp": selectedIndex--; this.RenderLater(); break;
@@ -181,22 +174,25 @@
             case "PageDown": selectedIndex += 10; this.RenderLater(); break;
             case "Enter":
                 await javascript.InvokeVoidAsync("blur");
-                if (app.items.Count == 0)
-                    await root.Login();
-                else if (shiftKey)
+                if (shiftKey)
                     await root.PerformAutoTypeUsernameAndPassword();
                 else
                     await root.PerformAutoTypePassword();
                 return;
         }
 
-        if (app.items.Count == 0)
-            return;
-
         await javascript.InvokeVoidAsync(
             "switchToInput",
             searchInputReference,
             key
+        );
+    }
+
+    void OpenLink(string url)
+    {
+        System.Diagnostics.Process.Start(
+            new System.Diagnostics.ProcessStartInfo(url.Replace("&", "^&"))
+                { UseShellExecute = true }
         );
     }
 }

@@ -30,43 +30,173 @@
             <span class="loading"></span>
         </div>
     </div>
-    <div class="dialog @(exportDialog.visible ? "visible" : "")" @onclick="() => exportDialog.visible = false">
-        <div class="dialog-box" @onclick:stopPropagation="true">
-            <div class="dialog-box-title">Export</div>
-            <div class="dialog-box-content">
-                <label style="align-self: flex-start; ">Key</label>
-                <pre>@exportDialog.password</pre>
-                <Button onClickAsync="CopyEncryptedDataPasswordToClipboard">Copy</Button>
+
+    <Dialog @ref="loadDialog">
+        <Title>
+            Load
+        </Title>
+        <Body>
+            <ul>
+                @foreach (var name in Utils.GetDataFileNames())
+                {
+                    <li class="@(dataFileName == name ? "selected" : "")" @onclick="() => dataFileName = name">@name</li>
+                }
+            </ul>
+            <div>
+                <input type="checkbox"
+                       class="interactable"
+                       @bind="dataFileEncryption" />
+                <label>Use Encryption</label>
             </div>
-            <div class="dialog-box-bottom">
-                <Button onClickAsync="exportDialog.PerformAction">Save</Button>
-                <Button onClick="CloseExportDialog">Cancel</Button>
+            <div>
+                <input type="checkbox"
+                       class="interactable"
+                       disabled="@(!dataFileEncryption)"
+                       @bind="dataFileProtection" />
+                <label>Use Protection</label>
             </div>
-        </div>
-    </div>
-    <div class="dialog @(downloadDialog.visible ? "visible" : "")" @onclick="() => downloadDialog.visible = false">
-        <div class="dialog-box" @onclick:stopPropagation="true">
-            <div class="dialog-box-title">Missing File</div>
-            <div class="dialog-box-content">
-                <p>
-                    You need to download <b>@downloadDialog.name</b> to
-                    perform <b>@downloadDialog.neededFor</b>.
-                </p>
+        </Body>
+        <Bottom>
+            <Button onClickAsync="() => Load(dataFileName, dataFileEncryption, dataFileProtection)"
+                    isEnabled="dataFileName != string.Empty">
+                Load
+            </Button>
+            <Button onClick="loadDialog.Close">Cancel</Button>
+        </Bottom>
+    </Dialog>
+
+    <Dialog @ref="saveDialog">
+        <Title>
+            Save
+        </Title>
+        <Body>
+            <input type="text"
+                   placeholder="Name"
+                   class="interactable"
+                   @bind="dataFileName"
+                   @bind:event="oninput" />
+            <div>
+                <input type="checkbox"
+                       class="interactable"
+                       @bind="dataFileEncryption" />
+                <label>Use Encryption</label>
             </div>
-            <div class="dialog-box-bottom">
-                <Button onClickAsync="downloadDialog.PerformAction">Download</Button>
-                <Button onClick="CloseDownloadDialog">Cancel</Button>
+            <div>
+                <input type="checkbox"
+                       class="interactable"
+                       disabled="@(!dataFileEncryption)"
+                       @bind="dataFileProtection" />
+                <label>Use Protection</label>
             </div>
-        </div>
-    </div>
+        </Body>
+        <Bottom>
+            <Button onClickAsync="() => Save(dataFileName, dataFileEncryption, dataFileProtection)"
+                    isEnabled="dataFileName != string.Empty">
+                @(Utils.GetDataFileNames().Contains(dataFileName, StringComparer.OrdinalIgnoreCase) ? "Overwrite" : "Save")
+            </Button>
+            <Button onClick="saveDialog.Close">Cancel</Button>
+        </Bottom>
+    </Dialog>
+
+    <Dialog @ref="loginDialog" onShow="LoginDialog_OnShow">
+        <Title>
+            Login
+        </Title>
+        <Body>
+            <div style="display: flex; flex-direction: column; gap: .5rem; "
+                 @onkeydown="LoginDialog_OnKeyDown">
+                <input type="text"
+                       placeholder="Url"
+                       class="interactable"
+                       @bind="Config.Instance.url"
+                       @bind:event="oninput"
+                       style="text-align: center; " />
+
+                <input type="text"
+                       placeholder="Username"
+                       class="interactable"
+                       @bind="Config.Instance.username"
+                       @bind:event="oninput"
+                       style="text-align: center; " />
+
+                <input type="password" @ref="loginDialogPasswordInput"
+                       placeholder="Password"
+                       class="interactable"
+                       @bind="loginDialogPassword"
+                       @bind:event="oninput"
+                       style="text-align: center; " />
+            </div>
+        </Body>
+        <Bottom>
+            <Button onClickAsync="() => Login(loginDialogPassword)"
+                    isEnabled="Utils.IsReadyToLogin(loginDialogPassword)">
+                Login
+            </Button>
+            <Button onClick="loginDialog.Close">Cancel</Button>
+        </Bottom>
+    </Dialog>
+
+    <DialogWithUserData @ref="downloadDialog" T="DownloadInfo">
+        <Title>
+            Missing File
+        </Title>
+        <Body>
+            <p>
+                You need to download
+                <b>@context?.Name</b>
+                to perform
+                <b>@context?.NeededFor</b>.
+            </p>
+        </Body>
+        <Bottom>
+            <Button onClickAsync="() => DownloadFile(context?.File)">Download</Button>
+            <Button onClick="downloadDialog.Close">Cancel</Button>
+        </Bottom>
+    </DialogWithUserData>
+
     <div id="status">
         @app.GetCurrentStatus()
     </div>
 </div>
 
+@using Directory = System.IO.Directory
+@using File = System.IO.File
+@using Path = System.IO.Path
+
+@inject IJSRuntime javascript
+
 @code {
 
     static App app => App.Instance;
+
+    public Dialog loadDialog;
+    public Dialog saveDialog;
+    string dataFileName = string.Empty;
+    bool dataFileEncryption = true;
+    bool dataFileProtection = true;
+
+    public Dialog loginDialog;
+    string loginDialogPassword = string.Empty;
+    ElementReference loginDialogPasswordInput;
+
+    async Task LoginDialog_OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+            if (Utils.IsReadyToLogin(loginDialogPassword))
+                await Login(loginDialogPassword);
+
+    }
+
+    async Task LoginDialog_OnShow()
+    {
+        await javascript.InvokeVoidAsync(
+            "switchToInput",
+            loginDialogPasswordInput
+        );
+    }
+
+    public DialogWithUserData<DownloadInfo> downloadDialog;
+    public record DownloadInfo(string File, string Name, string NeededFor);
 
     string _page = nameof(Page_Welcome);
 
@@ -78,30 +208,54 @@
         }
         set
         {
-            if (!(_page == value))
-            {
-                _page = value;
-                this.RenderLater();
-            }
+            if (_page == value)
+                return;
+
+            _page = value;
+            this.RenderLater();
         }
     }
 
     protected override void OnInitialized()
     {
         app.components.root = this;
-
-        if (app.IsReadyToLogin(includePassword: false))
-            _page = nameof(Page_Database);
-
         app.mainForm.Activated += (_, _) => this.RenderLater();
     }
 
-    public async Task Login()
+    public async Task Login(string password)
     {
-        if (OpenDownloadDialog("bw.exe", "Bitwarden CLI", "Auto Typing"))
-            return;
+        var file = "bw.exe";
 
+        if (!File.Exists(Path.Combine("files", file)))
+        {
+            downloadDialog.Open(new(file, "Bitwarden CLI", "Auto Typing"));
+            return;
+        }
+
+        await javascript.InvokeVoidAsync("blur");
+
+        await app.Login(password);
+
+        if (app.IsConnected())
+        {
+            dataFileName = Config.Instance.url
+                .Split("://")
+                .LastOrDefault()
+                .Split('/')
+                .FirstOrDefault();
+            loginDialog.Close();
+            await Sync();
+            return;
+        }
+
+        await LoginDialog_OnShow();
+    }
+
+    public async Task Sync()
+    {
         await app.Sync();
+
+        page = nameof(Page_Database);
 
         PostRender();
     }
@@ -109,6 +263,128 @@
     public async Task Logout()
     {
         await app.Logout();
+
+        PostRender();
+    }
+
+    public async Task Load(string name, bool decrypt, bool unprotect)
+    {
+        using var status = app.AddStatus("Loading...");
+
+        if (!File.Exists(Path.Combine("data", $"{name}.dat")))
+            return;
+
+        if (decrypt)
+        {
+            if (!File.Exists(Path.Combine("data", $"{name}.key")))
+                return;
+
+            loadDialog.Close();
+
+            try
+            {
+                var dataText = await File.ReadAllTextAsync(
+                    Path.Combine("data", $"{name}.dat")
+                );
+
+                var passwordText = await File.ReadAllTextAsync(
+                    Path.Combine("data", $"{name}.key")
+                );
+
+                var password = Convert.FromBase64String(
+                    passwordText.Replace("\r", "").Replace("\n", "")
+                );
+
+                var data = Convert.FromBase64String(
+                    dataText.Replace("\r", "").Replace("\n", "")
+                );
+
+                if (unprotect)
+                    EncryptedData.Unprotect(ref password);
+
+                app.data = EncryptedData
+                    .From(password, data)
+                    .Decrypt()
+                    .FromJson<Bitwarden_Data>();
+
+                page = nameof(Page_Database);
+
+                PostRender();
+            }
+            catch (Exception ex)
+            {
+                await app.TempStatus($"Error: {ex.Message}");
+                Logger.Log(ex);
+            }
+        }
+        else
+        {
+            loadDialog.Close();
+
+            var dataText = await File.ReadAllTextAsync(
+                Path.Combine("data", $"{name}.dat")
+            );
+
+            try
+            {
+                app.data = dataText.FromJson<Bitwarden_Data>();
+
+                page = nameof(Page_Database);
+
+                PostRender();
+            }
+            catch (Exception ex)
+            {
+                await app.TempStatus($"Error: {ex.Message}");
+                Logger.Log(ex);
+            }
+        }
+    }
+
+    public async Task Save(string name, bool encrypt, bool protect)
+    {
+        saveDialog.Close();
+
+        using var status = app.AddStatus("Saving...");
+
+        if (encrypt)
+        {
+            var data = EncryptedData.Encrypt(app.data.ToJson());
+
+            var password = data.GetPassword();
+
+            if (protect)
+                EncryptedData.Protect(ref password);
+
+            await File.WriteAllTextAsync(
+                Path.Combine("data", $"{name}.key"),
+                Convert.ToBase64String(password)
+                    .Split(80, Environment.NewLine)
+            );
+
+            await File.WriteAllTextAsync(
+                Path.Combine("data", $"{name}.dat"),
+                Convert.ToBase64String(data.Data)
+                    .Split(80, Environment.NewLine)
+            );
+        }
+        else
+        {
+            await File.WriteAllTextAsync(
+                Path.Combine("data", $"{name}.dat"),
+                app.data.ToJson()
+            );
+
+            var keyFile = Path.Combine("data", $"{name}.key");
+
+            if (File.Exists(keyFile))
+                File.Delete(keyFile);
+        }
+    }
+
+    public void Clear()
+    {
+        app.data = new();
 
         PostRender();
     }
@@ -142,105 +418,17 @@
     {
         if (firstRender)
         {
-            if (app.IsReadyToLogin(includePassword: false))
-            {
-                app.mainForm.OnAfterFirstRender(
-                    Config.Instance.bounds,
-                    Config.Instance.maximized
-                );
-            }
-            else
-            {
-                app.mainForm.OnAfterFirstRender(
-                    bounds: null,
-                    maximized: false
-                );
-            }
+            app.mainForm.OnAfterFirstRender(
+                Config.Instance.bounds,
+                Config.Instance.maximized
+            );
         }
     }
 
-    public class ExportDialog
+    async Task DownloadFile(string name)
     {
-        public bool visible;
-        public string password;
-        public byte[] data;
-
-        public async Task PerformAction()
-        {
-            visible = false;
-
-            using var status = app.AddStatus($"Exporting");
-
-            var path = System.IO.Path.Combine("data", "items.key");
-            await System.IO.File.WriteAllTextAsync(path, password);
-
-            path = System.IO.Path.Combine("data", "items.dat");
-            await System.IO.File.WriteAllBytesAsync(path, data);
-        }
-
-    }
-    readonly ExportDialog exportDialog = new();
-
-    public void OpenExportDialog()
-    {
-        exportDialog.visible = true;
-        var (password, data) = EncryptedData.Encrypt(app.items.ToJson());
-        exportDialog.password = password;
-        exportDialog.data = data;
-        this.RenderLater();
-    }
-
-    public void CloseExportDialog()
-    {
-        exportDialog.visible = false;
-        this.RenderLater();
-    }
-
-    public async Task CopyEncryptedDataPasswordToClipboard()
-    {
-
-        await Task.CompletedTask;
-    }
-
-    public class DownloadDialog
-    {
-        public bool visible;
-        public string file;
-        public string name;
-        public string neededFor;
-
-        public async Task PerformAction()
-        {
-            visible = false;
-
-            using var status = app.AddStatus($"Downloading {file}");
-
-            if (await Config.Instance.DownloadFile(file))
-                await app.TempStatus($"Download of {file} successful");
-            else
-                await app.TempStatus($"ERROR: Download of {file} failed");
-        }
-    }
-    readonly DownloadDialog downloadDialog = new();
-
-    public bool OpenDownloadDialog(string file, string name, string neededFor)
-    {
-        if (System.IO.File.Exists(System.IO.Path.Combine("files", file)))
-            return false;
-
-        downloadDialog.visible = true;
-        downloadDialog.file = file;
-        downloadDialog.name = name;
-        downloadDialog.neededFor = neededFor;
-        this.RenderLater();
-
-        return true;
-    }
-
-    public void CloseDownloadDialog()
-    {
-        downloadDialog.visible = false;
-        this.RenderLater();
+        if (await app.DownloadFile(name))
+            downloadDialog.Close();
     }
 
 }

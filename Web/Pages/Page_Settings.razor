@@ -5,12 +5,15 @@
     <label for="top-most-checkbox">Keep on Top</label>
 </div>
 
-<div class="field interactable">
-    <input id="delevoper-mode-checkbox" type="checkbox" checked="@Config.Instance.developerMode" @onchange="OnChangeDeveloperMode" />
-    <label for="delevoper-mode-checkbox">Developer Mode</label>
-</div>
+@if (Utils.DEBUG)
+{
+    <div class="field interactable">
+        <input id="delevoper-mode-checkbox" type="checkbox" checked="@Config.Instance.developerMode" @onchange="OnChangeDeveloperMode" />
+        <label for="delevoper-mode-checkbox">Developer Mode</label>
+    </div>
+}
 
-<div style="margin: 2rem auto 0; display: flex; flex-direction: column; gap: 1rem;">
+<div style="margin: 2rem auto 0; display: flex; flex-direction: column; align-items: center; gap: .5rem;">
     <Button onClick="() => app.mainForm.RefreshWindow(zoomFactor: 1, bounds: null, maximized: false)">
         Reset Window Position
     </Button>

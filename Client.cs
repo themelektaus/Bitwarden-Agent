@@ -15,22 +15,21 @@ public class Client()
 
     string session = string.Empty;
 
-    public async Task Login(string password)
+    public async Task Login(string url, string username, string password)
     {
         await Logout();
 
-        if (string.IsNullOrEmpty(Config.Instance.url))
+        if (string.IsNullOrEmpty(url))
             return;
 
-        if (string.IsNullOrEmpty(Config.Instance.username))
+        if (string.IsNullOrEmpty(username))
             return;
 
         if (string.IsNullOrEmpty(password))
             return;
 
-        url = Config.Instance.url;
-        username = Config.Instance.username;
-
+        this.url = url;
+        this.username = username;
         this.password = password;
 
         await ExecuteBw($"config server {url}");

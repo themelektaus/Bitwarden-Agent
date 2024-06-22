@@ -12,9 +12,9 @@ public partial class MainForm : Form
 {
     public bool Ready { get; private set; }
 
-    readonly BlazorWebView blazorWebView;
+    BlazorWebView blazorWebView;
 
-    public MainForm(App app)
+    public MainForm()
     {
         SuspendLayout();
 
@@ -24,6 +24,16 @@ public partial class MainForm : Form
         StartPosition = FormStartPosition.Manual;
         Margin = Padding.Empty;
 
+        SetupBlazorView();
+
+        Opacity = 0;
+        ShowInTaskbar = false;
+
+        ResumeLayout(true);
+    }
+
+    void SetupBlazorView()
+    {
         blazorWebView = new BlazorWebView
         {
             HostPage = AppInfo.hostPage,
@@ -45,11 +55,6 @@ public partial class MainForm : Form
         blazorWebView.RootComponents.Add<Web.Root>("#root");
 
         Controls.Add(blazorWebView);
-
-        Opacity = 0;
-        ShowInTaskbar = false;
-
-        ResumeLayout(true);
     }
 
     Task focusTask;
@@ -57,7 +62,9 @@ public partial class MainForm : Form
     public void TryShowDialog()
     {
         if (TryFocus() && !Visible)
+        {
             ShowDialog();
+        }
     }
 
     bool TryFocus()
@@ -101,6 +108,18 @@ public partial class MainForm : Form
             return;
 
         e.Cancel = true;
+
+        var config = Config.Instance;
+
+        if (WindowState == FormWindowState.Maximized)
+        {
+            config.maximized = true;
+        }
+        else
+        {
+            config.bounds = Bounds;
+            config.maximized = false;
+        }
 
         Hide();
     }

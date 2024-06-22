@@ -7,9 +7,10 @@
 else
 {
     <p>Next Update Check in @app.NextUpdateCheckCountdown seconds</p>
+
     @if (app.NextUpdateCheckCountdown > 5)
     {
-        <div style="display: flex; justify-content: center; ">
+        <div flex-center>
             <Button onClick="() => app.NextUpdateCheckCountdown = 5">
                 Check Now
             </Button>
@@ -17,11 +18,35 @@ else
     }
 }
 
+<div flex-center>
+    <Button onClick="@(() => app.components.root.downloadDialog.Open(new("File", "Name", "NeededFor")))">
+        Open Download Dialog
+    </Button>
+</div>
+
+<div flex-center>
+    <Button onClickAsync="@(async () => await app.TempStatus("This is a temporary status message. It is visible for 3 seconds."))">
+        Status Message
+    </Button>
+</div>
+
+<div flex-center>
+    <Button onClickAsync="@OnClickOpenFileDialogAsync">
+        Open File Dialog
+    </Button>
+</div>
+
+<div flex-center>
+    <input @bind="dialogFileName">
+</div>
+
 @implements IDisposable
 
 @code {
 
     static App app => App.Instance;
+
+    string dialogFileName = string.Empty;
 
     protected override void OnInitialized()
     {
@@ -32,6 +57,17 @@ else
     public void Dispose()
     {
         app.pages.debug = null;
+    }
+
+    async Task OnClickOpenFileDialogAsync()
+    {
+        var fileName = await app.ShowOpenFileDialog(dialogFileName);
+        if (fileName is null)
+            return;
+
+        dialogFileName = fileName;
+
+        this.RenderLater();
     }
 
 }
