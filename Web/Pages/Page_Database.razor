@@ -29,12 +29,24 @@
                     <div>Password</div>
                     <div class="mono">@item.login.password</div>
                 </div>
-                <div>
-                    <div>URL</div>
-                    <div class="link" @onclick="() => OpenLink(item.login.uris.FirstOrDefault()?.uri)">
-                        @item.login.uris.FirstOrDefault()?.uri
+                @if (item.GetUrl() != string.Empty)
+                {
+                    <div>
+                        <div>URL</div>
+                        <div class="link" @onclick="() => OpenLink(item.GetUrl())">
+                            @item.GetUrl()
+                        </div>
                     </div>
-                </div>
+                }
+                @if (item.GetNotes() != string.Empty)
+                {
+                    <div>
+                        <div>Notes</div>
+                        <div class="selectable-text">
+                            @item.GetNotes().ToHtmlString()
+                        </div>
+                    </div>
+                }
             </div>
             @if (Config.Instance.developerMode)
             {

@@ -107,4 +107,8 @@ public static class ExtensionMethods
         return await threadHandle.InvokeAsync(@this.ShowDialog);
     }
 
+    public static MarkupString ToHtmlString(this string @this)
+    {
+        return new(@this.ReplaceLineEndings("<br>"));
+    }
 }

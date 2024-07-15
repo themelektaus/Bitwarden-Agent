@@ -94,4 +94,14 @@ public class Bitwarden_Item
             .Where(x => !string.IsNullOrEmpty(x))
             .ToList();
     }
+
+    public string GetUrl()
+    {
+        return login.uris.FirstOrDefault()?.uri ?? string.Empty;
+    }
+
+    public string GetNotes()
+    {
+        return notes ?? string.Empty;
+    }
 }
