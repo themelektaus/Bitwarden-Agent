@@ -7,6 +7,9 @@ namespace BitwardenAgent;
 
 public record EncryptedData(byte[] Key, byte[] IV, byte[] Data)
 {
+    static readonly byte[] PROTECTION_ENTROPY
+        = "619687c0d5704358b1ce4c04ea952c68"u8.ToArray();
+
     public static EncryptedData From(byte[] password, byte[] data)
     {
         var keyLength = password.Length / 3 * 2;
@@ -87,24 +90,17 @@ public record EncryptedData(byte[] Key, byte[] IV, byte[] Data)
         return result;
     }
 
-    static readonly byte[] PROTECTION_SALT = new byte[] {
-        54, 49, 57, 54, 56, 55, 99, 48,
-        100, 53, 55, 48, 52, 51, 53, 56,
-        98, 49, 99, 101, 52, 99, 48, 52,
-        101, 97, 57, 53, 50, 99, 54, 56
-    };
-
     public static void Protect(ref byte[] value)
         => value = ProtectedData.Protect(
             value,
-            PROTECTION_SALT,
+            PROTECTION_ENTROPY,
             DataProtectionScope.CurrentUser
         );
 
     public static void Unprotect(ref byte[] value)
         => value = ProtectedData.Unprotect(
             value,
-            PROTECTION_SALT,
+            PROTECTION_ENTROPY,
             DataProtectionScope.CurrentUser
         );
 }
